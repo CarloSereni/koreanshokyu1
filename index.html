@@ -1,0 +1,771 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#b5651d">
+<title>韓国語初級完成編１</title>
+
+  <!-- === PWA ホーム画面追加機能（🇰🇷アイコン）=== -->
+  <link rel="manifest" href="manifest.json">
+
+  <!-- iOS対応 -->
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="韓国語初級完成編１">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <link rel="apple-touch-icon" href="icon-192.png">
+
+<script>
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then(function (reg) {
+    reg.update();
+  }).catch(function (e) {
+    console.warn('service worker登録失敗', e);
+  });
+}
+</script>
+
+
+<style>
+  :root{
+    --bg:#f7f3ec; --card:#ffffff; --cork:#e9c99b; --accent:#b5651d;
+    --ok:#2e7d32; --ng:#c62828; --line:#e0d7c8; --text:#3a2f22;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;font-family:'Malgun Gothic','Apple SD Gothic Neo',sans-serif;background:var(--bg);color:var(--text);}
+  #app{display:flex;min-height:100vh;position:relative;}
+  #menuBtn{position:fixed;top:10px;left:10px;z-index:100;width:40px;height:40px;border-radius:8px;border:1px solid var(--line);background:#fff;color:var(--text);font-size:18px;cursor:pointer;box-shadow:0 2px 6px rgba(0,0,0,.12);}
+  #overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:40;}
+  #sidebar{width:280px;flex-shrink:0;background:#fff;border-right:1px solid var(--line);padding:16px;padding-top:56px;overflow-y:auto;max-height:100vh;position:sticky;top:0;transition:margin-left .2s ease;}
+  #app.collapsed #sidebar{margin-left:-280px;}
+  #main{transition:none;}
+  @media (max-width:768px){
+    #sidebar{position:fixed;top:0;left:0;bottom:0;z-index:50;box-shadow:0 0 12px rgba(0,0,0,.2);margin-left:-280px;}
+    #app:not(.collapsed) #sidebar{margin-left:0;}
+    #app:not(.collapsed) #overlay{display:block;}
+    #main{padding:56px 14px 24px;max-width:100%;}
+  }
+  #sidebar h1{font-size:18px;margin:0 0 4px;}
+  #sidebar .sub{font-size:12px;color:#888;margin-bottom:12px;}
+  #progressSummary{font-size:13px;background:#fbf3e6;border:1px solid var(--line);border-radius:8px;padding:8px 10px;margin-bottom:14px;}
+  #sessionList{list-style:none;margin:0;padding:0;}
+  #sessionList li{margin-bottom:4px;}
+  #sessionList button{width:100%;text-align:left;background:none;border:none;padding:8px 10px;border-radius:8px;cursor:pointer;font-size:13px;display:flex;justify-content:space-between;align-items:center;gap:6px;}
+  #sessionList button:hover{background:#f2ead8;}
+  #sessionList button.active{background:var(--accent);color:#fff;}
+  #sessionList .badge{font-size:11px;background:#eee;border-radius:10px;padding:1px 7px;color:#555;flex-shrink:0;}
+  #sessionList button.active .badge{background:rgba(255,255,255,.25);color:#fff;}
+  #sessionList button.done .badge{background:#d7ecd8;color:var(--ok);}
+  #main{flex:1;padding:24px 32px;max-width:900px;}
+  #welcome{color:#777;padding-top:60px;text-align:center;}
+  .session-header{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:18px 20px;margin-bottom:18px;}
+  .session-header h2{margin:0 0 6px;font-size:20px;}
+  .session-header .instr{font-size:14px;color:#555;margin-bottom:6px;}
+  .hintbox{display:inline-block;background:#fdf1de;border:1px solid #eccf9a;border-radius:8px;padding:6px 10px;font-size:12.5px;color:var(--accent);margin-top:4px;}
+  .example{margin-top:8px;font-size:13.5px;color:#666;background:#f7f7f4;border-radius:6px;padding:6px 10px;}
+  .item{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 18px;margin-bottom:12px;}
+  .item .num{font-weight:bold;color:var(--accent);margin-right:6px;}
+  .item .prompt{font-size:15px;margin-bottom:8px;line-height:1.5;}
+  .item input[type=text], .item textarea{width:100%;padding:8px 10px;font-size:14px;border:1px solid #ccc;border-radius:6px;font-family:inherit;}
+  .item textarea{resize:vertical;min-height:44px;}
+  .choice-opt{display:block;margin:6px 0;font-size:14px;cursor:pointer;}
+  .choice-opt input{margin-right:8px;}
+  .item-controls{margin-top:8px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
+  .btn{background:var(--accent);color:#fff;border:none;padding:6px 12px;border-radius:6px;font-size:13px;cursor:pointer;}
+  .btn.secondary{background:#888;}
+  .btn.small{padding:4px 9px;font-size:12px;}
+  .btn:hover{opacity:.9;}
+  .result{font-size:13px;font-weight:bold;padding:3px 8px;border-radius:6px;}
+  .result.ok{color:var(--ok);background:#e6f4e6;}
+  .result.ng{color:var(--ng);background:#fbe6e6;}
+  .answer-reveal{font-size:13px;color:#444;background:#f2f2ea;border-radius:6px;padding:6px 10px;margin-top:6px;}
+  .toolbar{display:flex;gap:10px;margin:18px 0 40px;align-items:center;flex-wrap:wrap;}
+  #scoreBox{font-size:16px;font-weight:bold;background:#fff8ea;border:1px solid #eccf9a;padding:10px 16px;border-radius:10px;}
+  .flag{font-size:11px;color:#999;margin-left:6px;}
+</style>
+</head>
+<body>
+<button id="menuBtn" onclick="toggleSidebar()">☰</button>
+<div id="overlay" onclick="toggleSidebar()"></div>
+<div id="app">
+  <div id="sidebar">
+    <h1>韓国語文法練習</h1>
+    <div class="sub">PDF練習問題ベース・個人学習用</div>
+    <div id="progressSummary"></div>
+    <ul id="sessionList"></ul>
+  </div>
+  <div id="main">
+    <div id="welcome">左のリストからセッションを選んでください。</div>
+  </div>
+</div>
+
+<script>
+/* ================= 데이터 ================= */
+const SESSIONS = [
+{id:'s1',title:'원인-결과 연결 (선택형)',type:'choice',
+ instr:'어울리는 원인과 결과를 골라 "-기 때문에"로 한 문장을 만드세요.',
+ hint:'원인그룹: 시간이 없다 / 춥다 / 열심히 공부했다 / 노래를 부르는 것을 좋아하다 / 많이 먹었다<br>결과그룹: 옷을 많이 입었다 / 배가 부르다 / 만날 수 없다 / 가수가 되려고 하다 / 시험을 잘 봤다',
+ example:'시간이 없기 때문에 만날 수 없어요.',
+ items:[
+  {p:'① 알맞은 조합을 고르세요.',o:['춥기 때문에 옷을 많이 입었어요.','시간이 없기 때문에 옷을 많이 입었어요.','많이 먹었기 때문에 옷을 많이 입었어요.'],c:0},
+  {p:'② 알맞은 조합을 고르세요.',o:['노래를 부르는 것을 좋아하기 때문에 시험을 잘 봤어요.','춥기 때문에 시험을 잘 봤어요.','열심히 공부했기 때문에 시험을 잘 봤어요.'],c:2},
+  {p:'③ 알맞은 조합을 고르세요.',o:['노래를 부르는 것을 좋아하기 때문에 가수가 되려고 해요.','열심히 공부했기 때문에 가수가 되려고 해요.','시간이 없기 때문에 가수가 되려고 해요.'],c:0},
+  {p:'④ 알맞은 조합을 고르세요.',o:['춥기 때문에 배가 불러요.','시간이 없기 때문에 배가 불러요.','많이 먹었기 때문에 배가 불러요.'],c:2},
+ ]},
+{id:'s2',title:'이유+문장완성 선택 (합니다체)',type:'choice',
+ instr:'알맞은 구를 골라 문장을 완성하세요. (자막없이=without subtitles)',
+ example:'시험 점수가 나빴기 때문에 열심히 공부합니다.',
+ items:[
+  {p:'① 영화를 보다 / 영화를 좋아하다 → 극장에 자주 갑니다.',o:['영화를 보기 때문에 극장에 자주 갑니다.','영화를 좋아하기 때문에 극장에 자주 갑니다.'],c:1},
+  {p:'② 값이 싸다 / 친구와 같이 먹다 → 케이크를 샀어요.',o:['값이 싸기 때문에 케이크를 샀어요.','친구와 같이 먹기 때문에 케이크를 샀어요.'],c:0},
+  {p:'③ 한국 가수를 좋아하다 / 자막없이 한국 드라마를 보다 → 한국말을 배워요.',o:['한국 가수를 좋아하기 때문에 한국말을 배워요.','자막없이 한국 드라마를 보기 때문에 한국말을 배워요.'],c:0},
+  {p:'④ 자막없이 한국 드라마를 보다 / 자막없이 한국 드라마를 보고 싶다 → 한국말을 배워요.',o:['자막없이 한국 드라마를 보기 때문에 한국말을 배워요.','자막없이 한국 드라마를 보고 싶기 때문에 한국말을 배워요.'],c:1},
+ ]},
+{id:'s3',title:'이유+문장완성 선택 (다양한 어미)',type:'choice',
+ instr:'알맞은 구를 골라 문장을 완성하세요.',
+ example:'시험 점수가 나빴기 때문에 열심히 공부합니다.',
+ items:[
+  {p:'① 영화를 보다 / 영화를 좋아하다 → 극장에 자주 갑니다.',o:['영화를 보기 때문에 극장에 자주 갑니다.','영화를 좋아하기 때문에 극장에 자주 갑니다.'],c:1},
+  {p:'② 값이 싸다 / 친구와 같이 먹다 → 케이크를 샀습니다.',o:['값이 싸기 때문에 케이크를 샀습니다.','친구와 같이 먹기 때문에 케이크를 샀습니다.'],c:0},
+  {p:'③ 한국 가수를 좋아하다 / 자막없이 한국 드라마를 보다 → 한국말을 배웁니다.',o:['한국 가수를 좋아하기 때문에 한국말을 배웁니다.','자막없이 한국 드라마를 보기 때문에 한국말을 배웁니다.'],c:0},
+  {p:'④ 자막없이 한국 드라마를 보다 / 보고 싶다 → 한국말을 배울까요?',o:['자막없이 한국 드라마를 보기 때문에 한국말을 배울까요?','자막없이 한국 드라마를 보고 싶기 때문에 한국말을 배울까요?'],c:1},
+  {p:'⑤ 콘서트가 있다 / 콘서트를 보다 → 콘서트장에 갑니다.',o:['콘서트가 있기 때문에 콘서트장에 갑니다.','콘서트를 보기 때문에 콘서트장에 갑니다.'],c:0},
+ ]},
+{id:'s4',title:'명사 + 이기 때문에',type:'text',
+ instr:'예) 생일 / 파티를 합니다 → 생일이기 때문에 파티를 합니다.',
+ items:[
+  {p:'① 일본 사람 / 일본말을 잘 합니다.',a:['일본 사람이기 때문에 일본말을 잘 합니다.']},
+  {p:'② 휴일입니다. / 집에서 쉽니다.',a:['휴일이기 때문에 집에서 쉽니다.']},
+  {p:'③ 사장 / 바쁩니다.',a:['사장이기 때문에 바쁩니다.']},
+  {p:'④ 학생 / 공부를 합니다.',a:['학생이기 때문에 공부를 합니다.']},
+ ]},
+{id:'s5',title:'명사 + 때문에',type:'text',
+ instr:'예) 날씨 / 고생하다 → 날씨 때문에 고생해요.',
+ items:[
+  {p:'① 숙제 / 시간이 없다',a:['숙제 때문에 시간이 없어요.']},
+  {p:'② 아이 / 머리가 아프다',a:['아이 때문에 머리가 아파요.']},
+  {p:'③ 아이 / 웃다',a:['아이 때문에 웃어요.']},
+  {p:'④ 일 / 한국에 왔다',a:['일 때문에 한국에 왔어요.']},
+ ]},
+{id:'s6',title:'-든지 (아무 ~나)',type:'text',
+ hint:'맡기다=任せる(맡기다)',
+ instr:'예) 가: 언제 만날까요? (언제/괜찮다) 나: 언제든지 괜찮아요.',
+ items:[
+  {p:'① 가: 무슨 음식을 좋아해요? (뭐/좋아하다)',a:['뭐든지 좋아해요.']},
+  {p:'② 가: 많이 먹는군요. (얼마/먹을 수 있다)',a:['네, 얼마든지 먹을 수 있어요.']},
+  {p:'③ 가: 어디에 여행갈까요? (어디/좋다)',a:['어디든지 좋아요.']},
+  {p:'④ 가: 누구에게 맡길까요? (누구/할 수 있다)',a:['누구든지 할 수 있어요.']},
+  {p:'⑤ 가: 내일 전화해도 돼요? (몇 시/전화하세요)',a:['네, 몇 시든지 전화하세요.']},
+ ]},
+{id:'s7',title:'-(으)ㄴ 지 ~ 되다',type:'text',
+ hint:'오래=(時間が)長く',
+ instr:'예) 밥을 먹다/2시간 → 밥을 먹은 지 2시간 되었어요.',
+ items:[
+  {p:'① 결혼하다 / 5년',a:['결혼한 지 5년 되었어요.','결혼한 지 5년 됐어요.']},
+  {p:'② 한국에 오다 / 3개월',a:['한국에 온 지 3개월 되었어요.','한국에 온 지 3개월 됐어요.']},
+  {p:'③ 취직하다 / 10년',a:['취직한 지 10년 되었어요.','취직한 지 10년 됐어요.']},
+  {p:'④ 대학교를 졸업하다 / 오래',a:['대학교를 졸업한 지 오래 되었어요.','대학교를 졸업한 지 오래 됐어요.']},
+ ]},
+{id:'s8',title:'-는데/(으)ㄴ데 (대조)',type:'text',
+ instr:'예) 저는 매운 음식을 좋아하다/가나 씨는 어떤 음식을 좋아합니까? → 저는 매운 음식을 좋아하는데 가나 씨는 어떤 음식을 좋아합니까?',
+ items:[
+  {p:'① 한국 여름은 너무 덥다 / 일본 여름은 어떻습니까?',a:['한국 여름은 너무 더운데 일본 여름은 어떻습니까?']},
+  {p:'② 제 취미는 독서이다 / 미선 씨 취미는 무엇입니까?',a:['제 취미는 독서인데 미선 씨 취미는 무엇입니까?']},
+  {p:'③ 저는 회사원이다 / 미선 씨는 무엇을 하십니까?',a:['저는 회사원인데 미선 씨는 무엇을 하십니까?']},
+  {p:'④ 저는 빨간색을 좋아하다 / 무슨 색을 좋아해요?',a:['저는 빨간색을 좋아하는데 무슨 색을 좋아해요?']},
+  {p:'⑤ 저는 내일 도서관에 가다 / 미선 씨는 무엇을 할 거예요?',a:['저는 내일 도서관에 가는데 미선 씨는 무엇을 할 거예요?']},
+ ]},
+{id:'s9',title:'-아/어지다 (~해지다)',type:'text',
+ instr:'예) 따뜻하다 → 따뜻해져요.',
+ items:[
+  {p:'① 발음이 좋다',a:['발음이 좋아져요.']},
+  {p:'② 사이가 나쁘다',a:['사이가 나빠져요.']},
+  {p:'③ 친구가 많다',a:['친구가 많아져요.']},
+  {p:'④ 친구가 적다',a:['친구가 적어져요.']},
+  {p:'⑤ 요즘 미선 씨가 예쁘다',a:['요즘 미선 씨가 예뻐졌어요.']},
+  {p:'⑥ 여름이 되니까 덥다',a:['여름이 되니까 더워졌어요.']},
+ ]},
+{id:'s10',title:'-(으)려고',type:'text',
+ hint:'모으다=集める',
+ instr:'예) 의사가 되다/열심히 공부하다 → 의사가 되려고 열심히 공부해요.',
+ items:[
+  {p:'① 차를 사다 / 돈을 모으다',a:['차를 사려고 돈을 모아요.']},
+  {p:'② 영화를 보다 / 영화표를 예매했다',a:['영화를 보려고 영화표를 예매했어요.']},
+  {p:'③ 돈을 찾다 / 은행에 가다',a:['돈을 찾으려고 은행에 가요.']},
+  {p:'④ 책을 사다 / 서점에 가다',a:['책을 사려고 서점에 가요.']},
+  {p:'⑤ 친구하고 먹다 / 케이크를 만들었다',a:['친구하고 먹으려고 케이크를 만들었어요.']},
+ ]},
+{id:'s11',title:'-아/어하다 (3인칭 감정표현)',type:'text',
+ instr:'예) 친구/슬프다 → 친구가 슬퍼해요.',
+ items:[
+  {p:'① 친구 / 부끄럽다',a:['친구가 부끄러워해요.']},
+  {p:'② 형 / 기쁘다',a:['형이 기뻐해요.']},
+  {p:'③ 동생 / 영화 / 보고 싶다',a:['동생이 영화를 보고 싶어해요.']},
+  {p:'④ 학생 / 영어 / 어렵다',a:['학생이 영어를 어려워해요.']},
+  {p:'⑤ 친구 / 개 / 귀엽다',a:['친구가 개를 귀여워해요.']},
+ ]},
+{id:'s12',title:'-아/어 봤어요? (경험, 대화)',type:'text',
+ instr:'예) (한국에 가다) 가: 한국에 가 봤어요? 나: 네, 한국에 가 봤어요. ※가/나 대화를 모두 써 보세요.',
+ items:[
+  {p:'① (한국 음식을 만들다)',a:['가: 한국 음식을 만들어 봤어요? 나: 네, 한국 음식을 만들어 봤어요.']},
+  {p:'② (한국 술을 마시다)',a:['가: 한국 술을 마셔 봤어요? 나: 아니요, 한국 술을 마셔 보지 못했어요.']},
+  {p:'③ (한국 음악을 듣다)',a:['가: 한국 음악을 들어 봤어요? 나: 네, 한국 음악을 들어 봤어요.']},
+  {p:'④ (선생님께 묻다)',a:['가: 선생님께 물어 봤어요? 나: 네, 선생님께 물어 봤어요.']},
+  {p:'⑤ (한국 신문을 읽다)',a:['가: 한국 신문을 읽어 봤어요? 나: 아니요, 한국 신문을 읽어 보지 못했어요.']},
+ ]},
+{id:'s13',title:'-아/어야 하다 (의무)',type:'text',
+ instr:'예) 회의에 참석하다 → 회의에 참석해야 해요.',
+ items:[
+  {p:'① 예습을 하다',a:['예습을 해야 해요.']},
+  {p:'② 몸이 아프면 병원에 가다',a:['몸이 아프면 병원에 가야 해요.']},
+  {p:'③ 교통 규칙을 지키다',a:['교통 규칙을 지켜야 해요.']},
+  {p:'④ 공부방은 밝다',a:['공부방은 밝아야 해요.']},
+  {p:'⑤ 영화는 재미있다',a:['영화는 재미있어야 해요.']},
+ ]},
+{id:'s14',title:'-(으)ㄴ 적이 있다 (경험)',type:'text',
+ hint:'수술=<手術>, 걸다=(전화를)かける',
+ instr:'예) 미국에 가다 → 미국에 간 적이 있습니다.',
+ items:[
+  {p:'① 한국 영화를 보다',a:['한국 영화를 본 적이 있습니다.']},
+  {p:'② 갈비탕을 먹다',a:['갈비탕을 먹은 적이 있습니다.']},
+  {p:'③ 회사까지 걸어 보다',a:['회사까지 걸어 본 적이 있습니다.']},
+  {p:'④ 김치찌개를 만들어 보다',a:['김치찌개를 만들어 본 적이 있습니다.']},
+  {p:'⑤ 수술을 받다',a:['수술을 받은 적이 있습니다.']},
+  {p:'⑥ 한국 친구에게 전화를 걸다',a:['한국 친구에게 전화를 건 적이 있습니다.']},
+ ]},
+{id:'s15',title:'-(으)ㄴ 적이 있다 (대화, 부정)',type:'text',
+ instr:'예) 가: 미국에 간 적이 있습니까? 나: 아니요, 미국에 간 적이 없습니다. ※나의 대답만 쓰세요.',
+ items:[
+  {p:'① 가: 한국 영화를 본 적이 있습니까? 나: 아니요,',a:['한국 영화를 본 적이 없습니다.']},
+  {p:'② 가: 갈비탕을 먹은 적이 있습니까? 나: 네,',a:['갈비탕을 먹은 적이 있습니다.']},
+  {p:'③ 가: 회사까지 걸어 본 적이 있어요? 나: 아니요,',a:['회사까지 걸어 본 적이 없습니다.']},
+  {p:'④ 가: 김치찌개를 만들어 본 적이 있어요? 나: 네,',a:['김치찌개를 만들어 본 적이 있습니다.']},
+  {p:'⑤ 가: 수술을 받은 적이 있어요? 나: 아니요,',a:['수술을 받은 적이 없습니다.']},
+  {p:'⑥ 가: 한국 친구에게 전화를 건 적이 있어요? 나: 네,',a:['한국 친구에게 전화를 건 적이 있습니다.']},
+ ]},
+{id:'s16',title:'-는데/(으)ㄴ데 + 나열(-고)',type:'text',
+ instr:'예) 이것은 제 사전이다/쓰기가 편하다/어휘가 많다 → 이것은 제 사전인데 쓰기가 편하고 어휘가 많아요.',
+ items:[
+  {p:'① 저 분은 김 선생님이다 / 친절하다 / 잘 가르치다',a:['저 분은 김 선생님인데 친절하고 잘 가르쳐요.']},
+  {p:'② 여기가 신주쿠이다 / 사람이 많다 / 교통이 복잡하다',a:['여기가 신주쿠인데 사람이 많고 교통이 복잡해요.']},
+  {p:'③ 이것은 친구가 준 과자이다 / 아주 맛있다',a:['이것은 친구가 준 과자인데 아주 맛있어요.']},
+  {p:'④ 삼계탕은 여름에 많이 먹다 / 건강에 아주 좋은 음식이다',a:['삼계탕은 여름에 많이 먹는데 건강에 아주 좋은 음식이에요.']},
+  {p:'⑤ 이 옷은 백화점에서 샀다 / 싸다 / 입기 편하다',a:['이 옷은 백화점에서 샀는데 싸고 입기 편해요.']},
+ ]},
+{id:'s17',title:'~부터',type:'text',
+ hint:'자기 소개=<自己紹介>, 세우다=(計画を)立てる',
+ instr:'예) 가: 아침에 일어나면 우선 뭐부터 해요? (샤워/하다) 나: 샤워부터 해요.',
+ items:[
+  {p:'① 가: 영화를 볼 때 우선 뭐부터 해요? (표/사다)',a:['표부터 사요.']},
+  {p:'② 가: 사람을 처음 만나면 뭐부터 해요? (자기소개/하다)',a:['자기 소개부터 해요.','자기소개부터 해요.']},
+  {p:'③ 가: 여행가고 싶어요. 뭐부터 할까요? (계획/세우다)',a:['계획부터 세우세요.']},
+  {p:'④ 가: 옷을 살 때 우선 뭘 봐요? (가격/보다)',a:['가격부터 봐요.']},
+ ]},
+{id:'s18',title:'-게 (부사형)',type:'text',
+ hint:'귀엽다=かわいい',
+ instr:'예) 옷/싸다/샀다 → 옷을 싸게 샀어요.',
+ items:[
+  {p:'① 인형 / 귀엽다 / 생겼다',a:['인형이 귀엽게 생겼어요.']},
+  {p:'② 시험 문제 / 어렵다 / 나왔다',a:['시험 문제가 어렵게 나왔어요.']},
+  {p:'③ 요즘 / 바쁘다 / 지내다',a:['요즘 바쁘게 지내요.']},
+  {p:'④ 쉽다 / 설명해 주세요.',a:['쉽게 설명해 주세요.']},
+  {p:'⑤ 행복하다 / 살고 싶다',a:['행복하게 살고 싶어요.']},
+ ]},
+{id:'s19',title:'-아/어도 되다 (허락)',type:'text',
+ instr:'예) 이것을 먹다 → 이것을 먹어도 돼요.',
+ items:[
+  {p:'① 여기에 앉다',a:['여기에 앉아도 돼요.']},
+  {p:'② 여기에서 사진을 찍다',a:['여기에서 사진을 찍어도 돼요.']},
+  {p:'③ 여기에서 담배를 피우다',a:['여기에서 담배를 피워도 돼요.']},
+  {p:'④ 회의에 참석하지 않다',a:['회의에 참석하지 않아도 돼요.']},
+ ]},
+{id:'s20',title:'-(으)면 안 되다 (금지, 대화)',type:'text',
+ instr:'예) 가: 그것을 먹어도 돼요? 나: 아니요, 먹으면 안 돼요. ※나의 대답만 쓰세요.',
+ items:[
+  {p:'① 가: 여기에 앉아도 돼요? 나: 네,',a:['앉아도 돼요.']},
+  {p:'② 가: 여기에 앉아도 돼요? 나: 아니요,',a:['앉으면 안 돼요.']},
+  {p:'③ 가: 여기에서 사진을 찍어도 돼요? 나: 네,',a:['사진을 찍어도 돼요.']},
+  {p:'④ 가: 여기에서 사진을 찍어도 돼요? 나: 아니요,',a:['사진을 찍으면 안 돼요.']},
+  {p:'⑤ 가: 여기에서 담배를 피워도 돼요? 나: 네,',a:['담배를 피워도 돼요.']},
+  {p:'⑥ 가: 여기에서 담배를 피워도 돼요? 나: 아니요,',a:['담배를 피우면 안 돼요.']},
+  {p:'⑦ 가: 회의에 참석하지 않아도 돼요? 나: 네,',a:['참석하지 않아도 돼요.']},
+  {p:'⑧ 가: 회의에 참석하지 않아도 돼요? 나: 아니요,',a:['참석하지 않으면 안 돼요.']},
+ ]},
+{id:'s21',title:'-(으)ㄹ까 하다',type:'text',
+ hint:'고등학교=<高等学校>, 졸업=<卒業>, 취직=<就職>',
+ instr:'예) 이사를 하다 → 이사를 할까 합니다.',
+ items:[
+  {p:'① 여행을 가다',a:['여행을 갈까 합니다.']},
+  {p:'② 고등학교를 졸업하면 취직하다',a:['고등학교를 졸업하면 취직할까 합니다.']},
+  {p:'③ 중국말을 공부하다',a:['중국말을 공부할까 합니다.']},
+  {p:'④ 내일 영화를 보다',a:['내일 영화를 볼까 합니다.']},
+  {p:'⑤ 여기에 앉다',a:['여기에 앉을까 합니다.']},
+  {p:'⑥ 한국 음악을 듣다',a:['한국 음악을 들을까 합니다.']},
+  {p:'⑦ 케이크를 만들다',a:['케이크를 만들까 합니다.']},
+ ]},
+{id:'s22',title:'-기는 -지만 (양보)',type:'text',
+ hint:'성격=<性格>, 다르다=異なる, 입에 맞다=口に合う',
+ instr:'예) 먹다/그렇게 좋아하지 않다 → 먹기는 먹지만 그렇게 좋아하지 않아요.',
+ items:[
+  {p:'① 편리하다 / 좀 비싸다',a:['편리하기는 편리하지만 좀 비싸요.']},
+  {p:'② 그 두 사람은 성격이 다르다 / 친하게 지내다',a:['그 두 사람은 성격이 다르기는 다르지만 친하게 지내요.']},
+  {p:'③ 한국 신문을 읽다 / 어렵다',a:['한국 신문을 읽기는 읽지만 어려워요.']},
+  {p:'④ 열심히 공부하다 / 수업을 따라가기가 어렵다',a:['열심히 공부하기는 하지만 수업을 따라가기가 어려워요.']},
+  {p:'⑤ 열심히 공부했다 / 시험에 떨어졌다',a:['열심히 공부하기는 했지만 시험에 떨어졌어요.']},
+  {p:'⑥ 만들었다 / 입에 맞을지 모르겠다',a:['만들기는 했지만 입에 맞을지 모르겠어요.']},
+ ]},
+{id:'s23',title:'-아/어 보세요 (권유)',type:'text',
+ hint:'모자=<帽子>, 쓰다=(帽子を)かぶる',
+ instr:'예) 읽다 → 읽어 보세요.',
+ items:[
+  {p:'① 한국에 가다',a:['한국에 가 보세요.']},
+  {p:'② 한국 음식을 먹다',a:['한국 음식을 먹어 보세요.']},
+  {p:'③ 이 술을 마시다',a:['이 술을 마셔 보세요.']},
+  {p:'④ 선생님께 묻다',a:['선생님께 물어 보세요.']},
+  {p:'⑤ 한국 노래를 듣다',a:['한국 노래를 들어 보세요.']},
+  {p:'⑥ 케이크를 만들다',a:['케이크를 만들어 보세요.']},
+  {p:'⑦ 모자를 쓰다',a:['모자를 써 보세요.']},
+ ]},
+{id:'s24',title:'-는데/(으)ㄴ데 + 명령/청유',type:'text',
+ hint:'떠들다=騒ぐ',
+ instr:'예) 오늘은 바쁘다/내일 하다/(으)ㅂ시다 → 오늘은 바쁜데 내일 합시다.',
+ items:[
+  {p:'① 날씨가 좋다 / 산책하다 / (으)ㄹ까요?',a:['날씨가 좋은데 산책할까요?']},
+  {p:'② 지금 공부하다 / 조용히 하다 / 어(아,여) 주십시오.',a:['지금 공부하는데 조용히 해 주십시오.']},
+  {p:'③ 지금 책을 읽다 / 떠들다 / 지 마십시오.',a:['지금 책을 읽는데 떠들지 마십시오.']},
+  {p:'④ 그 영화는 어제 봤다 / 다른 영화를 보다 / (으)ㅂ시다.',a:['그 영화는 어제 봤는데 다른 영화를 봅시다.']},
+ ]},
+{id:'s25',title:'-(으)로 하겠어요/합시다 (선택·결정)',type:'text',
+ hint:'흡연석=喫煙席, 어울리다=似合う',
+ instr:'예) 가: 어느 옷을 입고 가겠어요? (이 옷) 나: 이 옷으로 하겠어요.',
+ items:[
+  {p:'① 가: 뭘 드시겠어요? (불고기)',a:['불고기로 하겠어요.']},
+  {p:'② 가: 금연석으로 하겠어요? 흡연석으로 하겠어요? (흡연석)',a:['흡연석으로 하겠어요.']},
+  {p:'③ 가: 우리 언제 만날까요? (다음 주)',a:['다음 주로 합시다.']},
+  {p:'④ 가: 우리 어디에 갈까요? (부산)',a:['부산으로 합시다.']},
+  {p:'⑤ 가: 옷을 사고 싶은데 어느 옷이 좋을까요? (이 옷) → ___, 잘 어울릴 거예요.',a:['이 옷으로 하세요.']},
+  {p:'⑥ 가: 여행을 가려고 하는데 어디가 좋을까요? (한국) → ___, 음식도 맛있고 사람들도 친절해요.',a:['한국으로 하세요.']},
+ ]},
+{id:'s26',title:'-아/어도 (양보)',type:'text',
+ hint:'실력=<実力>, 늘다=伸びる',
+ instr:'예) 많이 쉬다 + 피곤하다 → 많이 쉬어도 피곤해요.',
+ items:[
+  {p:'① 많이 사다 + 입지 않은 옷이 많다',a:['많이 사도 입지 않은 옷이 많아요.']},
+  {p:'② 여러 번 읽다 + 이 책을 이해하기가 어렵다',a:['여러 번 읽어도 이 책을 이해하기가 어려워요.']},
+  {p:'③ 열심히 공부하다 + 실력이 늘지 않다',a:['열심히 공부해도 실력이 늘지 않아요.']},
+  {p:'④ 바쁘다 + 친구들을 자주 만나다',a:['바빠도 친구들을 자주 만나요.']},
+ ]},
+{id:'s27',title:'-(으)니까 (발견)',type:'text',
+ hint:'연습=<練習>, 보이다=見える, 발음=<発音>',
+ instr:'예) 10분쯤 걷다 + 학교가 보였다 → 10분쯤 걸으니까 학교가 보였어요.',
+ items:[
+  {p:'① 만나 보다 + 좋은 사람이었다',a:['만나 보니까 좋은 사람이었어요.']},
+  {p:'② 대학생이 되다 + 친구가 많아졌다',a:['대학생이 되니까 친구가 많아졌어요.']},
+  {p:'③ 가방을 열다 + 친구 책이 있었다',a:['가방을 여니까 친구 책이 있었어요.']},
+  {p:'④ 열심히 연습했다 + 발음이 좋아졌다',a:['열심히 연습하니까 발음이 좋아졌어요.']},
+ ]},
+{id:'s28',title:'-았/었으면 좋겠다 (바람)',type:'text',
+ instr:'예) 집에서 쉬다 → 집에서 쉬었으면 좋겠어요.',
+ items:[
+  {p:'① 여행을 가다',a:['여행을 갔으면 좋겠어요.']},
+  {p:'② 한국말을 잘 하다',a:['한국말을 잘 했으면 좋겠어요.']},
+  {p:'③ 시험이 없다',a:['시험이 없었으면 좋겠어요.']},
+  {p:'④ 한국에서 살다',a:['한국에서 살았으면 좋겠어요.']},
+  {p:'⑤ 친구를 만나다',a:['친구를 만났으면 좋겠어요.']},
+ ]},
+{id:'s29',title:'반말 (평서/의문/명령→반말)',type:'text',
+ instr:'예) 수업이 1시에 끝나요 → 수업이 1시에 끝나.',
+ items:[
+  {p:'① 아침을 먹어요.',a:['아침을 먹어.']},
+  {p:'② 친구를 만났어요.',a:['친구를 만났어.']},
+  {p:'③ 한국에 가고 싶어요.',a:['한국에 가고 싶어.']},
+  {p:'④ 한국어를 할 수 있어요.',a:['한국어를 할 수 있어.']},
+  {p:'⑤ 저는 운전을 못 해요.',a:['나는 운전을 못 해.']},
+  {p:'⑥ 가방이 무거워요?',a:['가방이 무거워?']},
+  {p:'⑦ 공부했어요?',a:['공부했어?']},
+  {p:'⑧ 한국어를 할 수 있어요?',a:['한국어를 할 수 있어?']},
+  {p:'⑨ 뭘 먹고 싶어요?',a:['뭘 먹고 싶어?']},
+  {p:'⑩ 공부하세요.',a:['공부해.']},
+  {p:'⑪ 교과서를 읽으세요.',a:['교과서를 읽어.']},
+  {p:'⑫ 가르쳐 주세요.',a:['가르쳐 줘.']},
+  {p:'⑬ 영화를 봐요.(봅시다)',a:['영화를 봐.']},
+  {p:'⑭ 같이 공부해요.',a:['같이 공부해.']},
+  {p:'⑮ 같이 도서관에 가요.',a:['같이 도서관에 가.']},
+ ]},
+{id:'s30',title:'반말 - 이다 (응/아니)',type:'text',
+ instr:'예) 여기/학교/응 → 가: 여기가 학교야? 나: 응, (여기가) 학교야. ※가/나 모두 써 보세요.',
+ items:[
+  {p:'① 이 사람 / 친구 / 응',a:['가: 이 사람이 친구야? 나: 응, 이 사람이 친구야.']},
+  {p:'② 오늘 / 수요일 / 아니',a:['가: 오늘이 수요일이야? 나: 아니, 오늘은 수요일이 아니야.']},
+  {p:'③ 여기 / 어디 / 도서관',a:['가: 여기가 어디야? 나: 여기가 도서관이야.']},
+  {p:'④ 이것 / 무엇 / 교과서',a:['가: 이것이 무엇이야? 나: 이것이 교과서야.','가: 이게 뭐야? 나: 이게 교과서야.']},
+  {p:'⑤ 지금 / 몇 시 / 2시',a:['가: 지금 몇 시야? 나: 2시야.']},
+ ]},
+{id:'s31',title:'합니다체 → 반말 변환',type:'text',
+ instr:'가/나 모두 반말로 바꾸어 써 보세요.',
+ items:[
+  {p:'① 가: 여기가 학교입니까? 나: 네, ~~~',a:['가: 여기가 학교이니? 나: 응, 여기가 학교다.','가: 여기가 학교니? 나: 응, 여기가 학교다.']},
+  {p:'② 가: 학생입니까? 나: 아니요, ~~~',a:['가: 학생이니? 나: 아니, 학생이 아니다.']},
+  {p:'③ 가: 오늘이 무슨 요일입니까? 나: 수요일입니다.',a:['가: 오늘이 무슨 요일이니? 나: 수요일이다.']},
+  {p:'④ 가: 요즘 바쁩니까? 나: 네, ~~~',a:['가: 요즘 바쁘니? 나: 응, 요즘 바쁘다.']},
+  {p:'⑤ 가: 가방이 무겁습니까? 나: 아니요, ~~~',a:['가: 가방이 무겁니? 나: 아니, 가방이 안 무겁다.','가: 가방이 무겁니? 나: 아니, 가방이 무겁지 않다.']},
+  {p:'⑥ 가: 날씨가 어떻습니까? 나: 날씨가 춥습니다.',a:['가: 날씨가 어떠니? 나: 날씨가 춥다.']},
+  {p:'⑦ 가: 날마다 아침을 먹습니까? 나: 네, ~~~',a:['가: 날마다 아침을 먹니? 나: 응, 날마다 아침을 먹는다.']},
+  {p:'⑧ 가: 도서관에 갑니까? 나: 아니요, ~~~',a:['가: 도서관에 가니? 나: 아니, 도서관에 안 간다.','가: 도서관에 가니? 나: 아니, 도서관에 가지 않는다.']},
+  {p:'⑨ 가: 수업이 몇 시에 끝납니까? 나: 수업이 1시에 끝납니다.',a:['가: 수업이 몇 시에 끝나니? 나: 수업이 1시에 끝난다.']},
+  {p:'⑩ 가: 친구를 만났습니까? 나: 네, ~~~',a:['가: 친구를 만났니? 나: 응, 친구를 만났다.']},
+  {p:'⑪ 가: 공부했습니까? 나: 아니요, ~~~',a:['가: 공부했니? 나: 아니, 공부 안 했다.','가: 공부했니? 나: 아니, 공부하지 않았다.']},
+  {p:'⑫ 가: 꽃이 예뻤습니까? 나: 네, ~~~',a:['가: 꽃이 예뻤니? 나: 응, 예뻤다.']},
+  {p:'⑬ 가: 사람이 많았습니까? 나: 아니요, ~~~',a:['가: 사람이 많았니? 나: 아니, 사람이 안 많았다.','가: 사람이 많았니? 나: 아니, 사람이 많지 않았다.']},
+  {p:'⑭ 가: 날씨가 어땠습니까? 나: 더웠습니다.',a:['가: 날씨가 어땠니? 나: 더웠다.']},
+  {p:'⑮ 가: 한국에 가고 싶습니까? 나: 네, ~~~',a:['가: 한국에 가고 싶니? 나: 응, 한국에 가고 싶다.']},
+  {p:'⑯ 가: 과자를 먹고 싶습니까? 나: 아니요, ~~~',a:['가: 과자를 먹고 싶니? 나: 아니, 과자를 먹고 싶지 않다.']},
+  {p:'⑰ 가: 한국어를 할 수 있습니까? 나: 네, ~~~',a:['가: 한국어를 할 수 있니? 나: 응, 한국어를 할 수 있다.']},
+  {p:'⑱ 가: 운전을 할 수 있습니까? 나: 아니요, ~~~',a:['가: 운전을 할 수 있니? 나: 아니, 운전을 할 수 없다.','가: 운전을 할 수 있니? 나: 아니, 운전을 못 한다.']},
+  {p:'⑲ 가: 저는 내일 시험이 있습니다. 나: 시험 준비 때문에 바쁘겠습니다.',a:['가: 난 내일 시험이 있다. 나: 시험 준비 때문에 바쁘겠다.']},
+ ]},
+{id:'s32',title:'청유형 → 반말',type:'text',
+ hint:'포기하다=あきらめる',
+ instr:'예) 갑시다. → 가자.',
+ items:[
+  {p:'① 같이 영화를 봅시다.',a:['같이 영화를 보자.']},
+  {p:'② 공부합시다.',a:['공부하자.']},
+  {p:'③ 도서관에 갑시다.',a:['도서관에 가자.']},
+  {p:'④ 여기 앉읍시다.',a:['여기 앉자.']},
+  {p:'⑤ 술은 마시지 맙시다.',a:['술은 마시지 말자.']},
+  {p:'⑥ 포기하지 맙시다.',a:['포기하지 말자.']},
+ ]},
+{id:'s33',title:'명령형(십시오) → 반말',type:'text',
+ instr:'예) 공부하십시오. → 공부해(라).',
+ items:[
+  {p:'① 오십시오.',a:['와(라).','와라.','와.']},
+  {p:'② 청소하십시오.',a:['청소해(라).','청소해라.','청소해.']},
+  {p:'③ 쓰십시오.',a:['써(라).','써라.','써.']},
+  {p:'④ 좀 기다려 주십시오.',a:['좀 기다려 줘(라).','좀 기다려 줘라.','좀 기다려 줘.']},
+  {p:'⑤ 가르쳐 주십시오.',a:['가르쳐 줘(라).','가르쳐 줘라.','가르쳐 줘.']},
+  {p:'⑥ 교과서 좀 빌려 주십시오.',a:['교과서 좀 빌려 줘(라).','교과서 좀 빌려 줘라.','교과서 좀 빌려 줘.']},
+ ]},
+{id:'s34',title:'-(이)나 (~라도)',type:'text',
+ instr:'예) 커피/마십시다 → 커피나 마십시다.',
+ items:[
+  {p:'① 영화 / 보러 갑시다',a:['영화나 보러 갑시다.']},
+  {p:'② 산책 / 갑시다',a:['산책이나 갑시다.']},
+  {p:'③ 여행 / 하고 싶어요',a:['여행이나 하고 싶어요.']},
+  {p:'④ 아르바이트 / 할까 해요',a:['아르바이트나 할까 해요.']},
+  {p:'⑤ 라면 / 시킬까요?',a:['라면이나 시킬까요?']},
+ ]},
+{id:'s35',title:'-(으)ㄹ지 -(으)ㄹ지 (선택 고민)',type:'text',
+ hint:'고민=悩み, 정하다=決める',
+ instr:'예) 에어컨을 사다/선풍기를 사다/고민하고 있다 → 에어컨을 살지 선풍기를 살지 고민하고 있어요.',
+ items:[
+  {p:'① 친구에게 이야기하다 / 이야기하지 않다 / 생각중이다',a:['친구에게 이야기할지 이야기하지 않을지 생각중이에요.']},
+  {p:'② 버스로 가다 / 택시로 가다 / 생각하고 있다',a:['버스로 갈지 택시로 갈지 생각하고 있어요.']},
+  {p:'③ 계약을 하다 / 안 하다 / 이번 주 중으로 정하세요.',a:['계약을 할지 안 할지 이번 주 중으로 정하세요.']},
+  {p:'④ 케이크를 먹다 / 쿠키를 먹다 / 말하세요.',a:['케이크를 먹을지 쿠키를 먹을지 말하세요.']},
+  {p:'⑤ 오늘 가다 / 내일 가다 / 생각중이다',a:['오늘 갈지 내일 갈지 생각중이에요.']},
+  {p:'⑥ 대학교를 졸업하면 취직을 하다 / 대학원에 가다 / 고민하고 있다',a:['대학교를 졸업하면 취직을 할지 대학원에 갈지 고민하고 있어요.']},
+  {p:'⑦ 오른쪽으로 가야 하다 / 왼쪽으로 가야 하다 / 모르겠다',a:['오른쪽으로 가야 할지 왼쪽으로 가야 할지 모르겠어요.']},
+ ]},
+{id:'s36',title:'-기로 하다 (결정)',type:'text',
+ hint:'출발=<出発>, 끊다=断つ, 규칙적이다=<規則的>だ, 성실하다=<誠実>だ',
+ instr:'예) 공부하다 → 공부하기로 했어요.',
+ items:[
+  {p:'① 3시에 출발하다',a:['3시에 출발하기로 했어요.']},
+  {p:'② 술 담배를 끊다',a:['술 담배를 끊기로 했어요.']},
+  {p:'③ 오늘부터 규칙적인 생활을 하다',a:['오늘부터 규칙적인 생활을 하기로 했어요.']},
+  {p:'④ 성실하게 살다',a:['성실하게 살기로 했어요.']},
+ ]},
+{id:'s37',title:'-아/어 가지고 (~해서)',type:'text',
+ hint:'복사=<複写>, 유학=<留学>',
+ instr:'예) 책을 빌리다/읽다 → 책을 빌려 가지고 읽어요.',
+ items:[
+  {p:'① 꽃을 사다 / 여자 친구에게 줬다',a:['꽃을 사 가지고 여자 친구에게 줬어요.']},
+  {p:'② 이 책을 복사하다 / 친구에게 줬다',a:['이 책을 복사해 가지고 친구에게 줬어요.']},
+  {p:'③ 한국말을 공부하다 / 통역관이 되고 싶다',a:['한국말을 공부해 가지고 통역관이 되고 싶어요.']},
+  {p:'④ 돈을 벌다 / 유학을 갈 거예요.',a:['돈을 벌어 가지고 유학을 갈 거예요.']},
+ ]},
+{id:'s38',title:'-는지/(으)ㄴ지 아세요?',type:'text',
+ hint:'카페=カフェ, 분위기=<雰囲気>',
+ instr:'예) 지금 몇 시예요? → 지금 몇 시인지 아세요?',
+ items:[
+  {p:'① 여기가 어디예요?',a:['여기가 어디인지 아세요?']},
+  {p:'② 이 사람이 누구예요?',a:['이 사람이 누구인지 아세요?']},
+  {p:'③ 이것이 무엇입니까?',a:['이것이 무엇인지 아세요?','이게 뭔지 아세요?']},
+  {p:'④ 그 카페 분위기가 어떻습니까?',a:['그 카페 분위기가 어떤지 아세요?']},
+  {p:'⑤ 삼계탕은 어떻게 먹어요?',a:['삼계탕은 어떻게 먹는지 아세요?']},
+  {p:'⑥ 왜 미선 씨가 안 와요?',a:['왜 미선 씨가 안 오는지 아세요?']},
+  {p:'⑦ 제임스 씨는 어디에 갔어요?',a:['제임스 씨가 어디에 갔는지 아세요?']},
+  {p:'⑧ 제임스 씨는 몇 시에 돌아오겠어요?',a:['제임스 씨가 몇 시에 돌아올지 아세요?']},
+  {p:'⑨ 버스 정류장이 어디에 있어요?',a:['버스 정류장이 어디에 있는지 아세요?']},
+ ]},
+{id:'s39',title:'~는지 알아요/몰라요 (대화 응답)',type:'text',
+ instr:'예) 가: 지금 몇 시인지 아세요?(네/3시) 나: 네, 알아요. 3시예요.',
+ items:[
+  {p:'① 여기가 어디인지 아세요? (네/지하철 역)',a:['네, 알아요. 지하철 역이에요.']},
+  {p:'② 이 사람이 누구인지 아세요? (네/친구 동생)',a:['네, 알아요. 친구 동생이에요.']},
+  {p:'③ 이게 뭔지 아세요? (아니요)',a:['아니요, 몰라요.']},
+  {p:'④ 그 카페 분위기가 어떤지 아세요? (네/조용하고 좋다)',a:['네, 알아요. 조용하고 좋습니다.','네, 알아요. 조용하고 좋아요.']},
+  {p:'⑤ 삼계탕은 어떻게 먹는지 아세요? (네/소금을 넣어서 드세요)',a:['네, 알아요. 소금을 넣어서 드세요.']},
+  {p:'⑥ 왜 미선 씨가 안 오는지 아세요? (아니요)',a:['아니요, 몰라요.']},
+  {p:'⑦ 제임스 씨가 어디에 갔는지 아세요? (네/도서관)',a:['네, 알아요. 도서관에 갔어요.']},
+  {p:'⑧ 제임스 씨가 몇 시에 돌아올지 아세요? (네/7시)',a:['네, 알아요. 7시예요.']},
+  {p:'⑨ 버스 정류장이 어디에 있는지 아세요? (네/그 건물 뒤)',a:['네, 알아요. 그 건물 뒤예요.']},
+ ]},
+{id:'s40',title:'-(으)로 (전환)',type:'text',
+ instr:'예) 지하철/갈아타다 → 지하철로 갈아타요.',
+ items:[
+  {p:'① 버스 / 갈아타다',a:['버스로 갈아타요.']},
+  {p:'② 원피스 / 갈아입다',a:['원피스로 갈아입어요.']},
+  {p:'③ 부츠 / 갈아신다',a:['부츠로 갈아신어요.']},
+ ]},
+{id:'s41',title:'-(으)려면 (~하려고 하면)',type:'text',
+ hint:'빌리다=借りる, 살을 빼다=やせる, 비자=ビザ, 대사관=<大使館>',
+ instr:'예) 한국어를 잘 하고 싶어요.(열심히 공부하세요.) → 한국어를 잘 하려면 열심히 공부하세요.',
+ items:[
+  {p:'① 건강하게 살고 싶어요. (담배를 끊으세요.)',a:['건강하게 살려면 담배를 끊으세요.']},
+  {p:'② 책을 빌리고 싶어요. (도서관에 가세요.)',a:['책을 빌리려면 도서관에 가세요.']},
+  {p:'③ 어떻게 하면 살을 뺄 수 있어요? (운동을 하세요.)',a:['살을 빼려면 운동을 하세요.']},
+  {p:'④ 비자를 받고 싶은데 어디에 가야 해요? (대사관에 가야 해요.)',a:['비자를 받으려면 대사관에 가야 해요.']},
+ ]},
+{id:'s42',title:'-(이)나요? (놀라움)',type:'text',
+ hint:'기다리다=待つ, 손님=客, 초대=<招待>, 자다=寝る, 낳다=産む',
+ instr:'예) 3시간 걸려요. → 3시간이나요?',
+ items:[
+  {p:'① 어제 친구를 2시간 기다렸어요.',a:['2시간이나요?']},
+  {p:'② 손님을 15명 초대했어요.',a:['15명이나요?']},
+  {p:'③ 저는 날마다 12시간 자요.',a:['12시간이나요?']},
+  {p:'④ 저는 아이를 6명 낳을 거예요.',a:['6명이나요?']},
+ ]},
+{id:'s43',title:'-을/를 ~이나 (놀라운 양)',type:'text',
+ instr:'예) 사과/5개/먹었다 → 사과를 5개나 먹었어요.',
+ items:[
+  {p:'① 어제 / 커피 / 6잔 / 마셨다',a:['어제 커피를 6잔이나 마셨어요.']},
+  {p:'② 불고기 / 3인분 / 먹었다',a:['불고기를 3인분이나 먹었어요.']},
+  {p:'③ 저 / 구두 / 20켤레 / 가지고 있다',a:['저는 구두를 20켤레나 가지고 있어요.']},
+  {p:'④ 어제 / 책 / 7권 / 읽었다',a:['어제 책을 7권이나 읽었어요.']},
+ ]},
+{id:'s44',title:'-나요?/(으)ㄴ가요? (질문 바꾸기+답)',type:'text',
+ instr:'예) 어디에 가요?(도서관) → 가: 어디에 가나요? 나: 도서관에 가요. ※가/나 모두 써 보세요.',
+ items:[
+  {p:'① 학생이에요? (네)',a:['가: 학생인가요? 나: 네, 학생이에요.']},
+  {p:'② 요즘 바빠요? (네)',a:['가: 요즘 바쁜가요? 나: 네, 요즘 바빠요.']},
+  {p:'③ 사람이 많아요? (네)',a:['가: 사람이 많은가요? 나: 네, 사람이 많아요.']},
+  {p:'④ 어디에서 공부해요? (도서관)',a:['가: 어디에서 공부하나요? 나: 도서관에서 공부해요.']},
+  {p:'⑤ 뭘 먹어요? (빵)',a:['가: 뭘 먹나요? 나: 빵을 먹어요.']},
+  {p:'⑥ 어디에 갔어요? (도서관)',a:['가: 어디에 갔나요? 나: 도서관에 갔어요.']},
+  {p:'⑦ 어제 바빴어요? (네)',a:['가: 어제 바빴나요? 나: 네, 바빴어요.']},
+  {p:'⑧ 내일 뭘 할 거예요? (공부하다)',a:['가: 내일 뭘 할 건가요? 나: 공부할 거예요.']},
+  {p:'⑨ 영화가 재미있어요? (네)',a:['가: 영화가 재미있나요? 나: 네, 재미있어요.']},
+  {p:'⑩ 맛이 어때요? (맛없다)',a:['가: 맛이 어떤가요? 나: 맛없어요.']},
+ ]},
+{id:'s45',title:'-아/어 보이다 (~해 보이다)',type:'text',
+ hint:'행복하다=<幸福>だ, 젊다=若い, 건강하다=健康だ',
+ instr:'예) 오른쪽 주스가 많다 → 오른쪽 주스가 많아 보여요.',
+ items:[
+  {p:'① 행복하다',a:['행복해 보여요.']},
+  {p:'② 젊다',a:['젊어 보여요.']},
+  {p:'③ 피곤하다',a:['피곤해 보여요.']},
+  {p:'④ 기분이 좋다',a:['기분이 좋아 보여요.']},
+  {p:'⑤ 건강하다',a:['건강해 보여요.']},
+  {p:'⑥ 가방이 무겁다',a:['가방이 무거워 보여요.']},
+ ]},
+];
+
+/* ================= 상태 & 저장 ================= */
+const STORE_KEY = 'koStudyProgress_v1';
+let store = JSON.parse(localStorage.getItem(STORE_KEY) || '{}');
+if(!store.sessions) store.sessions = {};
+
+function saveStore(){ localStorage.setItem(STORE_KEY, JSON.stringify(store)); }
+
+function getSessState(id){
+  if(!store.sessions[id]) store.sessions[id] = {answers:{}, correctness:{}, choiceSel:{}};
+  return store.sessions[id];
+}
+
+function normalize(s){
+  return (s||'').toString()
+    .replace(/\s+/g,'')
+    .replace(/[.,!?~()'"“”‘’·]/g,'')
+    .trim();
+}
+
+let currentSessionId = null;
+
+/* ================= 렌더링 ================= */
+function renderSidebar(){
+  const ul = document.getElementById('sessionList');
+  ul.innerHTML = '';
+  let totalScore=0, totalMax=0, doneCount=0;
+  SESSIONS.forEach(s=>{
+    const st = getSessState(s.id);
+    const max = s.items.length*10;
+    let score=0;
+    s.items.forEach((it,idx)=>{ if(st.correctness[idx]===true) score+=10; });
+    totalScore+=score; totalMax+=max;
+    const answeredAll = Object.keys(st.correctness).length>0;
+    if(answeredAll) doneCount++;
+    const li = document.createElement('li');
+    const btn = document.createElement('button');
+    btn.className = (s.id===currentSessionId?'active ':'') + (answeredAll?'done':'');
+    btn.innerHTML = `<span>${s.title}</span><span class="badge">${answeredAll? score+'/'+max : max+'点'}</span>`;
+    btn.onclick = ()=>openSession(s.id);
+    li.appendChild(btn);
+    ul.appendChild(li);
+  });
+  document.getElementById('progressSummary').innerHTML =
+    `全体の進捗: <b>${doneCount}/${SESSIONS.length}</b> セッション採点済み<br>累積点数: <b>${totalScore}</b> / ${totalMax}`;
+}
+
+function toggleSidebar(){
+  document.getElementById('app').classList.toggle('collapsed');
+}
+
+function openSession(id){
+  currentSessionId = id;
+  store.lastSessionId = id;
+  saveStore();
+  renderSidebar();
+  renderMain();
+  if(window.innerWidth<=768){
+    document.getElementById('app').classList.add('collapsed');
+  }
+  window.scrollTo(0,0);
+}
+
+function renderMain(){
+  const main = document.getElementById('main');
+  const s = SESSIONS.find(x=>x.id===currentSessionId);
+  if(!s){ main.innerHTML = '<div id="welcome">左のリストからセッションを選んでください。</div>'; return; }
+  const st = getSessState(s.id);
+
+  let html = `<div class="session-header">
+    <h2>${s.title}</h2>
+    <div class="instr">${s.instr||''}</div>
+    ${s.hint? `<div class="hintbox">${s.hint}</div>`:''}
+    ${s.example? `<div class="example">예) ${s.example}</div>`:''}
+  </div>`;
+
+  s.items.forEach((it,idx)=>{
+    const savedAns = st.answers[idx] || '';
+    const correctness = st.correctness[idx];
+    let resultHtml = '';
+    if(correctness===true) resultHtml = '<span class="result ok">✓ 正解</span>';
+    else if(correctness===false) resultHtml = '<span class="result ng">✗ 不正解</span>';
+
+    html += `<div class="item" data-idx="${idx}">
+      <div class="prompt"><span class="num">${idx+1}.</span>${it.p}</div>`;
+
+    if(s.type==='choice'){
+      const sel = st.choiceSel[idx];
+      it.o.forEach((opt,oi)=>{
+        html += `<label class="choice-opt"><input type="radio" name="choice_${s.id}_${idx}" value="${oi}" ${sel==oi?'checked':''} onchange="onChoiceChange('${s.id}',${idx},${oi})"> ${opt}</label>`;
+      });
+    } else {
+      html += `<textarea data-idx="${idx}" placeholder="答えを入力してください" oninput="onTextChange('${s.id}',${idx},this.value)">${savedAns}</textarea>`;
+    }
+
+    html += `<div class="item-controls">
+        <button class="btn small" onclick="checkOne('${s.id}',${idx})">答え合わせ</button>
+        <button class="btn small secondary" onclick="toggleReveal(${idx})">正解を見る</button>
+        ${resultHtml}
+      </div>
+      <div class="answer-reveal" id="reveal_${idx}" style="display:none;">正解: ${s.type==='choice'? it.o[it.c] : it.a.join(' / ')}</div>
+    </div>`;
+  });
+
+  html += `<div class="toolbar">
+      <button class="btn" onclick="gradeAll('${s.id}')">まとめて採点</button>
+      <button class="btn secondary" onclick="resetSession('${s.id}')">このセッションをリセット</button>
+      <div id="scoreBox"></div>
+    </div>`;
+
+  main.innerHTML = html;
+  updateScoreBox(s.id);
+}
+
+function toggleReveal(idx){
+  const el = document.getElementById('reveal_'+idx);
+  el.style.display = el.style.display==='none' ? 'block' : 'none';
+}
+
+function onTextChange(sid, idx, val){
+  const st = getSessState(sid);
+  st.answers[idx] = val;
+  saveStore();
+}
+
+function onChoiceChange(sid, idx, oi){
+  const st = getSessState(sid);
+  st.choiceSel[idx] = oi;
+  saveStore();
+}
+
+function checkOne(sid, idx){
+  const s = SESSIONS.find(x=>x.id===sid);
+  const st = getSessState(sid);
+  const it = s.items[idx];
+  let ok;
+  if(s.type==='choice'){
+    ok = st.choiceSel[idx] === it.c;
+  } else {
+    const userVal = st.answers[idx] || '';
+    ok = it.a.some(a=> normalize(a)===normalize(userVal)) && normalize(userVal)!=='';
+  }
+  st.correctness[idx] = ok;
+  saveStore();
+  renderSidebar();
+  renderMain();
+}
+
+function gradeAll(sid){
+  const s = SESSIONS.find(x=>x.id===sid);
+  const st = getSessState(sid);
+  s.items.forEach((it,idx)=>{
+    let ok;
+    if(s.type==='choice'){
+      ok = st.choiceSel[idx] === it.c;
+    } else {
+      const userVal = st.answers[idx] || '';
+      ok = it.a.some(a=> normalize(a)===normalize(userVal)) && normalize(userVal)!=='';
+    }
+    st.correctness[idx] = ok;
+  });
+  saveStore();
+  renderSidebar();
+  renderMain();
+}
+
+function updateScoreBox(sid){
+  const s = SESSIONS.find(x=>x.id===sid);
+  const st = getSessState(sid);
+  let score=0, graded=0;
+  s.items.forEach((it,idx)=>{
+    if(st.correctness[idx]!==undefined){ graded++; if(st.correctness[idx]) score+=10; }
+  });
+  const box = document.getElementById('scoreBox');
+  if(box) box.textContent = `採点結果: ${score} / ${s.items.length*10}点 (${graded}/${s.items.length}問採点済み)`;
+}
+
+function resetSession(sid){
+  if(!confirm('このセッションの回答と採点記録をリセットしますか?')) return;
+  store.sessions[sid] = {answers:{}, correctness:{}, choiceSel:{}};
+  saveStore();
+  renderSidebar();
+  renderMain();
+}
+
+/* 정답확인/전체채점 후 점수박스 갱신을 위해 renderMain 후 항상 호출됨 (updateScoreBox는 renderMain 끝에서 호출) */
+
+/* ================= 初期化 ================= */
+if(window.innerWidth<=768){
+  document.getElementById('app').classList.add('collapsed');
+}
+renderSidebar();
+if(store.lastSessionId && SESSIONS.some(s=>s.id===store.lastSessionId)){
+  openSession(store.lastSessionId);
+} 
+</script>
+</body>
+</html>
