@@ -1,9 +1,9 @@
-// 蔵書ライブラリ用 Service Worker
+// 韓国語初級完成編１ 用 Service Worker
 // - Chromeの「インストール」条件を満たすため、fetchハンドラを必ず持たせる
 // - 画面本体(HTML)はネットワーク優先(失敗時はキャッシュ)、表紙画像はキャッシュ優先
 // - GASへの通信(script.google.com / googleusercontent)やPOSTは一切横取りしない
-const CACHE_NAME = 'booklib-v1';
-const IMG_CACHE = 'booklib-img-v1';
+const CACHE_NAME = 'ko-study-v1';
+const IMG_CACHE = 'ko-study-img-v1';
 
 self.addEventListener('install', function (event) {
   self.skipWaiting();
@@ -13,7 +13,7 @@ self.addEventListener('activate', function (event) {
   event.waitUntil(
     caches.keys().then(function (keys) {
       return Promise.all(keys.map(function (k) {
-        if (k !== CACHE_NAME && k !== IMG_CACHE) return caches.delete(k);
+        if (k.indexOf('ko-study-') === 0 && k !== CACHE_NAME && k !== IMG_CACHE) return caches.delete(k);
       }));
     }).then(function () { return self.clients.claim(); })
   );

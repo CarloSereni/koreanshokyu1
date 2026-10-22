@@ -83,6 +83,10 @@ if ('serviceWorker' in navigator) {
   .toolbar{display:flex;gap:10px;margin:18px 0 40px;align-items:center;flex-wrap:wrap;}
   #scoreBox{font-size:16px;font-weight:bold;background:#fff8ea;border:1px solid #eccf9a;padding:10px 16px;border-radius:10px;}
   .flag{font-size:11px;color:#999;margin-left:6px;}
+  .ja{font-size:12.5px;color:#7a6a55;margin-top:4px;line-height:1.5;}
+  .spk{margin-top:6px;display:flex;gap:6px;}
+  .datatools{display:flex;gap:6px;margin-bottom:14px;}
+  .datatools .btn{flex:1;}
 </style>
 </head>
 <body>
@@ -93,6 +97,11 @@ if ('serviceWorker' in navigator) {
     <h1>韓国語文法練習</h1>
     <div class="sub">PDF練習問題ベース・個人学習用</div>
     <div id="progressSummary"></div>
+    <div class="datatools">
+      <button class="btn small secondary" onclick="exportData()">📤 進捗を書き出し</button>
+      <button class="btn small secondary" onclick="document.getElementById('importFile').click()">📥 読み込み</button>
+      <input type="file" id="importFile" accept=".json,application/json" style="display:none" onchange="importData(this)">
+    </div>
     <ul id="sessionList"></ul>
   </div>
   <div id="main">
@@ -100,7 +109,9 @@ if ('serviceWorker' in navigator) {
   </div>
 </div>
 
+<script src="translations.js"></script>
 <script>
+const TR = (typeof TRANS!=='undefined') ? TRANS : {};
 /* ================= 데이터 ================= */
 const SESSIONS = [
 {id:'s1',title:'원인-결과 연결 (선택형)',type:'choice',
@@ -639,12 +650,15 @@ function renderMain(){
   const s = SESSIONS.find(x=>x.id===currentSessionId);
   if(!s){ main.innerHTML = '<div id="welcome">左のリストからセッションを選んでください。</div>'; return; }
   const st = getSessState(s.id);
+  const tr = TR[s.id] || {};
 
   let html = `<div class="session-header">
     <h2>${s.title}</h2>
     <div class="instr">${s.instr||''}</div>
+    ${tr.instr? `<div class="ja">${tr.instr}</div>`:''}
     ${s.hint? `<div class="hintbox">${s.hint}</div>`:''}
-    ${s.example? `<div class="example">예) ${s.example}</div>`:''}
+    ${tr.hint? `<div class="ja">${tr.hint}</div>`:''}
+    ${s.example? `<div class="example">예) ${s.example}${tr.ex? `<div class="ja">${tr.ex}</div>`:''}</div>`:''}
   </div>`;
 
   s.items.forEach((it,idx)=>{
@@ -671,7 +685,7 @@ function renderMain(){
         <button class="btn small secondary" onclick="toggleReveal(${idx})">正解を見る</button>
         ${resultHtml}
       </div>
-      <div class="answer-reveal" id="reveal_${idx}" style="display:none;">正解: ${s.type==='choice'? it.o[it.c] : it.a.join(' / ')}</div>
+      <div class="answer-reveal" id="reveal_${idx}" style="display:none;">正解: ${s.type==='choice'? it.o[it.c] : it.a.join(' / ')}${(tr.items&&tr.items[idx])? '<div class="ja">'+tr.items[idx]+'</div>':''}<div class="spk"><button class="btn small" onclick="speakAns('${s.id}',${idx},1)">🔊 再生</button><button class="btn small secondary" onclick="speakAns('${s.id}',${idx},0.6)">🐢 ゆっくり</button></div></div>
     </div>`;
   });
 
@@ -711,7 +725,7 @@ function checkOne(sid, idx){
     ok = st.choiceSel[idx] === it.c;
   } else {
     const userVal = st.answers[idx] || '';
-    ok = it.a.some(a=> normalize(a)===normalize(userVal)) && normalize(userVal)!=='';
+    ok = isOK(s,it,userVal);
   }
   st.correctness[idx] = ok;
   saveStore();
@@ -728,7 +742,7 @@ function gradeAll(sid){
       ok = st.choiceSel[idx] === it.c;
     } else {
       const userVal = st.answers[idx] || '';
-      ok = it.a.some(a=> normalize(a)===normalize(userVal)) && normalize(userVal)!=='';
+      ok = isOK(s,it,userVal);
     }
     st.correctness[idx] = ok;
   });
@@ -757,6 +771,108 @@ function resetSession(sid){
 }
 
 /* 정답확인/전체채점 후 점수박스 갱신을 위해 renderMain 후 항상 호출됨 (updateScoreBox는 renderMain 끝에서 호출) */
+
+/* ================= 判定（表記ゆれ・합니다체/해요체の両対応） ================= */
+const NOREG = ['s29','s30','s31','s32','s33','s42','s44']; // 丁寧体変換を行わないセッション
+const H = c=>{const n=c.charCodeAt(0)-44032; return (n<0||n>11171)?null:[Math.floor(n/588),Math.floor(n%588/28),n%28];};
+const M = (a,b,c)=>String.fromCharCode(44032+a*588+b*28+c);
+function canon(s){ return normalize(s).replace(/되었/g,'됐').replace(/하였/g,'했').replace(/되어/g,'돼').replace(/하여/g,'해'); }
+function toHap(w,q){ // 해요체 → 합니다체
+  const e=q?'니까':'니다';
+  if(w.slice(-1)!=='요') return [];
+  if(/거예요$/.test(w)) return [w.slice(0,-3)+'겁'+e];
+  if(/(이에요|예요)$/.test(w)) return [w.replace(/(이에요|예요)$/,'입'+e)];
+  if(/세요$/.test(w)) return [w.slice(0,-2)+(q?'십니까':'십시오')];
+  const b=w.slice(0,-1), x=H(b.slice(-1)); if(!x||x[2]) return [];
+  const p=b.slice(0,-1), pp=H(p.slice(-1)), [c,j]=x;
+  if(c===18&&j===1) return [p+'합'+e];
+  if(c===3&&j===1) return [p+'됩'+e];
+  if(c===11&&(j===0||j===4)&&pp){
+    if(pp[2]===8) return [p.slice(0,-1)+M(pp[0],pp[1],17)+e];
+    if(pp[2]) return [p+'습'+e];
+  }
+  const f=(...js)=>js.map(v=>p+M(c,v,17)+e);
+  return ({0:()=>f(0,18),4:()=>f(4,18),1:()=>f(1),5:()=>f(5),6:()=>f(20,6),9:()=>f(8),14:()=>f(13)}[j]||(()=>[]))();
+}
+function toHae(w,q){ // 합니다체 → 해요체
+  const m=w.match(/^(.*)(니다|니까)$/); if(!m) return [];
+  const b=m[1], s=b.slice(-1), p=b.slice(0,-1), x=H(s); if(!x) return [];
+  const [c,j,t]=x;
+  if(s==='입') return [p+'이에요',p+'예요'];
+  if(s==='겁') return [p+'거예요'];
+  if(s==='습'){ const pp=H(p.slice(-1)); if(!pp) return []; return [p+((pp[2]!==20&&(pp[1]===0||pp[1]===8))?'아요':'어요')]; }
+  if(t!==17) return [];
+  if(c===18&&j===0) return [p+'해요'];
+  if(c===3&&j===11) return [p+'돼요'];
+  const z=(...js)=>js.map(v=>p+M(c,v,0)+'요');
+  const r=({0:()=>z(0),4:()=>z(4),1:()=>z(1),5:()=>z(5),8:()=>z(9),13:()=>z(14),20:()=>z(6),18:()=>z(0,4)}[j]||(()=>[]))();
+  r.push(p+M(c,j,8)+((j===0||j===8)?'아요':'어요')); // ㄹ語幹
+  return r;
+}
+function regVars(sent){
+  const m=sent.match(/^(.*?)([^\s.?!]+)([.?!]?)\s*$/); if(!m) return [sent];
+  const [,pre,w,pu]=m, q=pu==='?', out=[sent];
+  const c=/요$/.test(w)?toHap(w,q):(/(니다|니까)$/.test(w)?toHae(w,/니까$/.test(w)):[]);
+  c.forEach(v=>out.push(pre+v+pu));
+  return out;
+}
+function allVars(a){
+  const parts=a.match(/[^.?!]+[.?!]?\s*/g)||[a];
+  let out=[''];
+  parts.forEach(p=>{ const v=regVars(p.trim()); out=out.flatMap(o=>v.map(x=>o+' '+x)); });
+  return out;
+}
+function isOK(s,it,u){
+  const n=canon(u); if(!n) return false;
+  return it.a.some(a=> (NOREG.includes(s.id)?[a]:allVars(a)).some(v=>canon(v)===n));
+}
+
+/* ================= 音声再生（端末の音声機能） ================= */
+function speakAns(sid,idx,rate){
+  if(!('speechSynthesis' in window)){ alert('このブラウザは音声再生に対応していません。'); return; }
+  const s=SESSIONS.find(x=>x.id===sid), it=s.items[idx];
+  const text=(s.type==='choice'? it.o[it.c] : it.a[0]).replace(/\([^)]*\)/g,'');
+  const voices=speechSynthesis.getVoices();
+  const ko=voices.find(v=>/^ko/i.test(v.lang));
+  if(voices.length && !ko){ alert('この端末に韓国語音声が見つかりません。端末の設定で韓国語の音声を追加してください。'); return; }
+  speechSynthesis.cancel();
+  text.split(/\s*[가나]:\s*/).filter(x=>x.trim()).forEach(part=>{
+    const u=new SpeechSynthesisUtterance(part);
+    u.lang='ko-KR'; u.rate=rate; if(ko) u.voice=ko;
+    speechSynthesis.speak(u);
+  });
+}
+if('speechSynthesis' in window) speechSynthesis.getVoices();
+
+/* ================= 進捗の書き出し・読み込み ================= */
+function exportData(){
+  const d={app:'ko-study',version:1,exported:new Date().toISOString(),store:store};
+  const blob=new Blob([JSON.stringify(d,null,1)],{type:'application/json'});
+  const name='kankokugo-progress_'+new Date().toISOString().slice(0,10)+'.json';
+  const f=new File([blob],name,{type:'application/json'});
+  if(/iPhone|iPad|Android/i.test(navigator.userAgent) && navigator.canShare && navigator.canShare({files:[f]})){
+    navigator.share({files:[f]}).catch(()=>{}); return;
+  }
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=name; a.click();
+  setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+}
+function importData(inp){
+  const file=inp.files[0]; if(!file) return;
+  const r=new FileReader();
+  r.onload=()=>{
+    try{
+      const d=JSON.parse(r.result);
+      if(!d||d.app!=='ko-study'||!d.store||!d.store.sessions) throw new Error('形式が違います');
+      if(!confirm('現在の進捗を、読み込むファイルの内容で上書きします。よろしいですか？')) return;
+      store=d.store; saveStore();
+      if(store.lastSessionId && SESSIONS.some(s=>s.id===store.lastSessionId)) currentSessionId=store.lastSessionId;
+      renderSidebar(); renderMain();
+      alert('進捗を読み込みました。');
+    }catch(e){ alert('読み込めませんでした: '+e.message); }
+    inp.value='';
+  };
+  r.readAsText(file);
+}
 
 /* ================= 初期化 ================= */
 if(window.innerWidth<=768){
