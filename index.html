@@ -14,7 +14,7 @@
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="韓国語初級完成編１">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
-  <link rel="apple-touch-icon" href="icon-192.png">
+  <link rel="apple-touch-icon" href="icon-192.png?v=2">
 
 <script>
 if ('serviceWorker' in navigator) {
@@ -87,6 +87,16 @@ if ('serviceWorker' in navigator) {
   .spk{margin-top:6px;display:flex;gap:6px;}
   .datatools{display:flex;gap:6px;margin-bottom:14px;}
   .datatools .btn{flex:1;}
+  #sessionList button.review{border:1px solid #eccf9a;background:#fdf1de;font-weight:bold;margin-bottom:8px;}
+  #sessionList button.review:not(.active):hover{background:#f8e6c4;}
+  #sessionList button.review:not(.active) .badge{background:#f3d9a8;color:var(--accent);}
+  .item .from{font-size:11.5px;color:#999;margin-bottom:4px;}
+  .item details.ctx{margin:0 0 8px;font-size:12.5px;color:#666;}
+  .item details.ctx summary{cursor:pointer;color:var(--accent);}
+  .item details.ctx .instr{margin-top:4px;}
+  .btn.done{background:var(--ok);}
+  .btn.review{background:#d98b3a;}
+  .review-empty{text-align:center;color:#777;padding:30px 10px;}
 </style>
 </head>
 <body>
@@ -590,6 +600,35 @@ if(!store.sessions) store.sessions = {};
 
 function saveStore(){ localStorage.setItem(STORE_KEY, JSON.stringify(store)); }
 
+/* ---- 復習リスト（store.review = {'セッションID:問題番号': 1}） ----
+   不正解になった問題が自動で入り、「復習済み」を押すまで残る */
+function rkey(sid,idx){ return sid+':'+idx; }
+function ensureReview(){
+  if(store.review) return;
+  store.review = {};
+  // 復習機能の追加前に記録された不正解を、初回だけ引き継ぐ
+  SESSIONS.forEach(s=>{
+    const st = getSessState(s.id);
+    Object.keys(st.correctness).forEach(i=>{
+      if(st.correctness[i]===false) store.review[rkey(s.id,i)] = 1;
+    });
+  });
+  saveStore();
+}
+function reviewItems(){
+  const out = [];
+  SESSIONS.forEach(s=>{
+    s.items.forEach((it,idx)=>{ if(store.review[rkey(s.id,idx)]) out.push({s:s, idx:idx}); });
+  });
+  return out;
+}
+function markReviewed(sid, idx){
+  delete store.review[rkey(sid,idx)];
+  saveStore();
+  renderSidebar();
+  renderMain();
+}
+
 function getSessState(id){
   if(!store.sessions[id]) store.sessions[id] = {answers:{}, correctness:{}, choiceSel:{}};
   return store.sessions[id];
@@ -603,12 +642,20 @@ function normalize(s){
 }
 
 let currentSessionId = null;
+ensureReview();
 
 /* ================= 렌더링 ================= */
 function renderSidebar(){
   const ul = document.getElementById('sessionList');
   ul.innerHTML = '';
   let totalScore=0, totalMax=0, doneCount=0;
+  const rli = document.createElement('li');
+  const rbtn = document.createElement('button');
+  rbtn.className = (currentSessionId==='review'?'active ':'') + 'review';
+  rbtn.innerHTML = `<span>📝 復習セッション</span><span class="badge">${reviewItems().length}問</span>`;
+  rbtn.onclick = ()=>openSession('review');
+  rli.appendChild(rbtn);
+  ul.appendChild(rli);
   SESSIONS.forEach(s=>{
     const st = getSessState(s.id);
     const max = s.items.length*10;
@@ -645,11 +692,71 @@ function openSession(id){
   window.scrollTo(0,0);
 }
 
+function itemHtml(s, idx, inReview){
+  const st = getSessState(s.id);
+  const tr = TR[s.id] || {};
+  const it = s.items[idx];
+  const rid = s.id+'_'+idx;
+  const savedAns = st.answers[idx] || '';
+  const correctness = st.correctness[idx];
+  let resultHtml = '';
+  if(correctness===true) resultHtml = '<span class="result ok">✓ 正解</span>';
+  else if(correctness===false) resultHtml = '<span class="result ng">✗ 不正解</span>';
+
+  let html = `<div class="item" data-idx="${idx}">`;
+  if(inReview){
+    html += `<div class="from">${s.title}</div>
+      <details class="ctx"><summary>出題の説明を見る</summary>
+        <div class="instr">${s.instr||''}</div>
+        ${tr.instr? `<div class="ja">${tr.instr}</div>`:''}
+        ${s.hint? `<div class="hintbox">${s.hint}</div>`:''}
+        ${tr.hint? `<div class="ja">${tr.hint}</div>`:''}
+        ${s.example? `<div class="example">예) ${s.example}${tr.ex? `<div class="ja">${tr.ex}</div>`:''}</div>`:''}
+      </details>`;
+  }
+  html += `<div class="prompt"><span class="num">${idx+1}.</span>${it.p}</div>`;
+
+  if(s.type==='choice'){
+    const sel = st.choiceSel[idx];
+    it.o.forEach((opt,oi)=>{
+      html += `<label class="choice-opt"><input type="radio" name="choice_${s.id}_${idx}" value="${oi}" ${sel==oi?'checked':''} onchange="onChoiceChange('${s.id}',${idx},${oi})"> ${opt}</label>`;
+    });
+  } else {
+    html += `<textarea data-idx="${idx}" placeholder="答えを入力してください" oninput="onTextChange('${s.id}',${idx},this.value)">${savedAns}</textarea>`;
+  }
+
+  html += `<div class="item-controls">
+      <button class="btn small" onclick="checkOne('${s.id}',${idx})">答え合わせ</button>
+      <button class="btn small secondary" onclick="toggleReveal('${rid}')">正解を見る</button>
+      ${inReview? `<button class="btn small done" onclick="markReviewed('${s.id}',${idx})">✔ 復習済み</button>`:''}
+      ${resultHtml}
+    </div>
+    <div class="answer-reveal" id="reveal_${rid}" style="display:none;">正解: ${s.type==='choice'? it.o[it.c] : it.a.join(' / ')}${(tr.items&&tr.items[idx])? '<div class="ja">'+tr.items[idx]+'</div>':''}<div class="spk"><button class="btn small" onclick="speakAns('${s.id}',${idx},1)">🔊 再生</button><button class="btn small secondary" onclick="speakAns('${s.id}',${idx},0.6)">🐢 ゆっくり</button></div></div>
+  </div>`;
+  return html;
+}
+
+function renderReview(){
+  const main = document.getElementById('main');
+  const list = reviewItems();
+  let html = `<div class="session-header">
+    <h2>📝 復習セッション</h2>
+    <div class="instr">全セッションで間違えた問題がここに集まります。正解しても残るので、覚えたら「復習済み」で外してください。</div>
+    <div class="ja">復習する問題: ${list.length}問</div>
+  </div>`;
+  if(!list.length){
+    html += `<div class="item review-empty">復習する問題はありません 🎉<br>各セッションで間違えた問題が、ここに自動で貯まります。</div>`;
+  } else {
+    list.forEach(r=>{ html += itemHtml(r.s, r.idx, true); });
+  }
+  main.innerHTML = html;
+}
+
 function renderMain(){
   const main = document.getElementById('main');
+  if(currentSessionId==='review'){ renderReview(); return; }
   const s = SESSIONS.find(x=>x.id===currentSessionId);
   if(!s){ main.innerHTML = '<div id="welcome">左のリストからセッションを選んでください。</div>'; return; }
-  const st = getSessState(s.id);
   const tr = TR[s.id] || {};
 
   let html = `<div class="session-header">
@@ -661,36 +768,11 @@ function renderMain(){
     ${s.example? `<div class="example">예) ${s.example}${tr.ex? `<div class="ja">${tr.ex}</div>`:''}</div>`:''}
   </div>`;
 
-  s.items.forEach((it,idx)=>{
-    const savedAns = st.answers[idx] || '';
-    const correctness = st.correctness[idx];
-    let resultHtml = '';
-    if(correctness===true) resultHtml = '<span class="result ok">✓ 正解</span>';
-    else if(correctness===false) resultHtml = '<span class="result ng">✗ 不正解</span>';
-
-    html += `<div class="item" data-idx="${idx}">
-      <div class="prompt"><span class="num">${idx+1}.</span>${it.p}</div>`;
-
-    if(s.type==='choice'){
-      const sel = st.choiceSel[idx];
-      it.o.forEach((opt,oi)=>{
-        html += `<label class="choice-opt"><input type="radio" name="choice_${s.id}_${idx}" value="${oi}" ${sel==oi?'checked':''} onchange="onChoiceChange('${s.id}',${idx},${oi})"> ${opt}</label>`;
-      });
-    } else {
-      html += `<textarea data-idx="${idx}" placeholder="答えを入力してください" oninput="onTextChange('${s.id}',${idx},this.value)">${savedAns}</textarea>`;
-    }
-
-    html += `<div class="item-controls">
-        <button class="btn small" onclick="checkOne('${s.id}',${idx})">答え合わせ</button>
-        <button class="btn small secondary" onclick="toggleReveal(${idx})">正解を見る</button>
-        ${resultHtml}
-      </div>
-      <div class="answer-reveal" id="reveal_${idx}" style="display:none;">正解: ${s.type==='choice'? it.o[it.c] : it.a.join(' / ')}${(tr.items&&tr.items[idx])? '<div class="ja">'+tr.items[idx]+'</div>':''}<div class="spk"><button class="btn small" onclick="speakAns('${s.id}',${idx},1)">🔊 再生</button><button class="btn small secondary" onclick="speakAns('${s.id}',${idx},0.6)">🐢 ゆっくり</button></div></div>
-    </div>`;
-  });
+  s.items.forEach((it,idx)=>{ html += itemHtml(s, idx, false); });
 
   html += `<div class="toolbar">
       <button class="btn" onclick="gradeAll('${s.id}')">まとめて採点</button>
+      <button class="btn review" onclick="openSession('review')">📝 後で復習する（${reviewItems().length}問）</button>
       <button class="btn secondary" onclick="resetSession('${s.id}')">このセッションをリセット</button>
       <div id="scoreBox"></div>
     </div>`;
@@ -699,8 +781,8 @@ function renderMain(){
   updateScoreBox(s.id);
 }
 
-function toggleReveal(idx){
-  const el = document.getElementById('reveal_'+idx);
+function toggleReveal(rid){
+  const el = document.getElementById('reveal_'+rid);
   el.style.display = el.style.display==='none' ? 'block' : 'none';
 }
 
@@ -728,6 +810,7 @@ function checkOne(sid, idx){
     ok = isOK(s,it,userVal);
   }
   st.correctness[idx] = ok;
+  if(!ok) store.review[rkey(sid,idx)] = 1;
   saveStore();
   renderSidebar();
   renderMain();
@@ -745,6 +828,7 @@ function gradeAll(sid){
       ok = isOK(s,it,userVal);
     }
     st.correctness[idx] = ok;
+    if(!ok) store.review[rkey(sid,idx)] = 1;
   });
   saveStore();
   renderSidebar();
@@ -864,8 +948,8 @@ function importData(inp){
       const d=JSON.parse(r.result);
       if(!d||d.app!=='ko-study'||!d.store||!d.store.sessions) throw new Error('形式が違います');
       if(!confirm('現在の進捗を、読み込むファイルの内容で上書きします。よろしいですか？')) return;
-      store=d.store; saveStore();
-      if(store.lastSessionId && SESSIONS.some(s=>s.id===store.lastSessionId)) currentSessionId=store.lastSessionId;
+      store=d.store; ensureReview(); saveStore();
+      if(store.lastSessionId==='review' || (store.lastSessionId && SESSIONS.some(s=>s.id===store.lastSessionId))) currentSessionId=store.lastSessionId;
       renderSidebar(); renderMain();
       alert('進捗を読み込みました。');
     }catch(e){ alert('読み込めませんでした: '+e.message); }
@@ -879,7 +963,7 @@ if(window.innerWidth<=768){
   document.getElementById('app').classList.add('collapsed');
 }
 renderSidebar();
-if(store.lastSessionId && SESSIONS.some(s=>s.id===store.lastSessionId)){
+if(store.lastSessionId==='review' || (store.lastSessionId && SESSIONS.some(s=>s.id===store.lastSessionId))){
   openSession(store.lastSessionId);
 } 
 </script>
