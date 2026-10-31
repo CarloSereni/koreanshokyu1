@@ -96,6 +96,7 @@ if ('serviceWorker' in navigator) {
   .item details.ctx .instr{margin-top:4px;}
   .btn.done{background:var(--ok);}
   .btn.review{background:#d98b3a;}
+  .btn.review-on{background:#8a6d3b;}
   .review-empty{text-align:center;color:#777;padding:30px 10px;}
 </style>
 </head>
@@ -600,30 +601,29 @@ if(!store.sessions) store.sessions = {};
 
 function saveStore(){ localStorage.setItem(STORE_KEY, JSON.stringify(store)); }
 
-/* ---- 復習リスト（store.review = {'セッションID:問題番号': 1}） ----
-   不正解になった問題が自動で入り、「復習済み」を押すまで残る */
+/* ---- 復習セット（store.reviewSet = {'セッションID:問題番号': 1}） ----
+   各問題の「後で復習する」ボタンで手動で入れる。「復習済み」を押すまで残る */
 function rkey(sid,idx){ return sid+':'+idx; }
 function ensureReview(){
-  if(store.review) return;
-  store.review = {};
-  // 復習機能の追加前に記録された不正解を、初回だけ引き継ぐ
-  SESSIONS.forEach(s=>{
-    const st = getSessState(s.id);
-    Object.keys(st.correctness).forEach(i=>{
-      if(st.correctness[i]===false) store.review[rkey(s.id,i)] = 1;
-    });
-  });
+  if(store.review) delete store.review;   // 旧版の自動収集データは使わない
+  if(!store.reviewSet) store.reviewSet = {};
+}
+function toggleReview(sid, idx){
+  const k = rkey(sid,idx);
+  if(store.reviewSet[k]) delete store.reviewSet[k]; else store.reviewSet[k] = 1;
   saveStore();
+  renderSidebar();
+  renderMain();
 }
 function reviewItems(){
   const out = [];
   SESSIONS.forEach(s=>{
-    s.items.forEach((it,idx)=>{ if(store.review[rkey(s.id,idx)]) out.push({s:s, idx:idx}); });
+    s.items.forEach((it,idx)=>{ if(store.reviewSet[rkey(s.id,idx)]) out.push({s:s, idx:idx}); });
   });
   return out;
 }
 function markReviewed(sid, idx){
-  delete store.review[rkey(sid,idx)];
+  delete store.reviewSet[rkey(sid,idx)];
   saveStore();
   renderSidebar();
   renderMain();
@@ -728,7 +728,11 @@ function itemHtml(s, idx, inReview){
   html += `<div class="item-controls">
       <button class="btn small" onclick="checkOne('${s.id}',${idx})">答え合わせ</button>
       <button class="btn small secondary" onclick="toggleReveal('${rid}')">正解を見る</button>
-      ${inReview? `<button class="btn small done" onclick="markReviewed('${s.id}',${idx})">✔ 復習済み</button>`:''}
+      ${inReview
+        ? `<button class="btn small done" onclick="markReviewed('${s.id}',${idx})">✔ 復習済み</button>`
+        : (store.reviewSet[s.id+':'+idx]
+            ? `<button class="btn small review-on" onclick="toggleReview('${s.id}',${idx})">✓ 復習に追加済み（取り消す）</button>`
+            : `<button class="btn small review" onclick="toggleReview('${s.id}',${idx})">後で復習する</button>`)}
       ${resultHtml}
     </div>
     <div class="answer-reveal" id="reveal_${rid}" style="display:none;">正解: ${s.type==='choice'? it.o[it.c] : it.a.join(' / ')}${(tr.items&&tr.items[idx])? '<div class="ja">'+tr.items[idx]+'</div>':''}<div class="spk"><button class="btn small" onclick="speakAns('${s.id}',${idx},1)">🔊 再生</button><button class="btn small secondary" onclick="speakAns('${s.id}',${idx},0.6)">🐢 ゆっくり</button></div></div>
@@ -741,11 +745,11 @@ function renderReview(){
   const list = reviewItems();
   let html = `<div class="session-header">
     <h2>📝 復習セッション</h2>
-    <div class="instr">全セッションで間違えた問題がここに集まります。正解しても残るので、覚えたら「復習済み」で外してください。</div>
+    <div class="instr">各問題の「後で復習する」を押した問題が、全セッション分ここに集まります。正解しても残るので、覚えたら「復習済み」で外してください。</div>
     <div class="ja">復習する問題: ${list.length}問</div>
   </div>`;
   if(!list.length){
-    html += `<div class="item review-empty">復習する問題はありません 🎉<br>各セッションで間違えた問題が、ここに自動で貯まります。</div>`;
+    html += `<div class="item review-empty">復習する問題はありません 🎉<br>各問題の「後で復習する」を押すと、ここに集まります。</div>`;
   } else {
     list.forEach(r=>{ html += itemHtml(r.s, r.idx, true); });
   }
@@ -772,7 +776,7 @@ function renderMain(){
 
   html += `<div class="toolbar">
       <button class="btn" onclick="gradeAll('${s.id}')">まとめて採点</button>
-      <button class="btn review" onclick="openSession('review')">📝 後で復習する（${reviewItems().length}問）</button>
+      <button class="btn review" onclick="openSession('review')">📝 復習セッションへ（${reviewItems().length}問）</button>
       <button class="btn secondary" onclick="resetSession('${s.id}')">このセッションをリセット</button>
       <div id="scoreBox"></div>
     </div>`;
@@ -810,7 +814,6 @@ function checkOne(sid, idx){
     ok = isOK(s,it,userVal);
   }
   st.correctness[idx] = ok;
-  if(!ok) store.review[rkey(sid,idx)] = 1;
   saveStore();
   renderSidebar();
   renderMain();
@@ -828,7 +831,6 @@ function gradeAll(sid){
       ok = isOK(s,it,userVal);
     }
     st.correctness[idx] = ok;
-    if(!ok) store.review[rkey(sid,idx)] = 1;
   });
   saveStore();
   renderSidebar();
@@ -933,12 +935,29 @@ function exportData(){
   const d={app:'ko-study',version:1,exported:new Date().toISOString(),store:store};
   const blob=new Blob([JSON.stringify(d,null,1)],{type:'application/json'});
   const name='kankokugo-progress_'+new Date().toISOString().slice(0,10)+'.json';
-  const f=new File([blob],name,{type:'application/json'});
-  if(/iPhone|iPad|Android/i.test(navigator.userAgent) && navigator.canShare && navigator.canShare({files:[f]})){
-    navigator.share({files:[f]}).catch(()=>{}); return;
+  // 通常のダウンロード（<a>をページに追加してからクリックする）
+  const download=()=>{
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a');
+    a.href=url; a.download=name; a.style.display='none';
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(()=>{ document.body.removeChild(a); URL.revokeObjectURL(url); },1500);
+  };
+  // スマホは共有シートで保存。共有に失敗したら（キャンセル以外）ダウンロードに切り替える
+  if(/iPhone|iPad|Android/i.test(navigator.userAgent) && navigator.canShare && typeof File==='function'){
+    try{
+      const f=new File([blob],name,{type:'application/json'});
+      if(navigator.canShare({files:[f]})){
+        navigator.share({files:[f]}).catch(err=>{
+          if(err && err.name==='AbortError') return;
+          download();
+        });
+        return;
+      }
+    }catch(e){}
   }
-  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=name; a.click();
-  setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+  download();
 }
 function importData(inp){
   const file=inp.files[0]; if(!file) return;
