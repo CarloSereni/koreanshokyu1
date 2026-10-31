@@ -98,6 +98,29 @@ if ('serviceWorker' in navigator) {
   .btn.review{background:#d98b3a;}
   .btn.review-on{background:#8a6d3b;}
   .review-empty{text-align:center;color:#777;padding:30px 10px;}
+  .bar{height:12px;background:#eee;border-radius:6px;overflow:hidden;margin:3px 0 8px;}
+  .bar>i{display:block;height:100%;background:var(--accent);border-radius:6px;transition:width .4s;}
+  .bar.full>i{background:#f0b429;}
+  .qrow{display:flex;justify-content:space-between;font-size:14px;margin-top:6px;}
+  .goalrow{margin:8px 0;}.goalrow select{font-size:15px;padding:3px 6px;}
+  .goalprev,.goalsub{font-size:13px;color:#555;margin:6px 0;line-height:1.6;}
+  .goalmsg{margin-top:8px;font-weight:bold;}.goalmsg.ok{color:#b7791f;}.goalmsg.ng{color:#c0392b;}
+  .okc{color:#2e7d32;}.ngc{color:#c0392b;}
+  .statrow{display:flex;gap:10px;text-align:center;}.statrow>div{flex:1;background:#f7f4ef;border-radius:8px;padding:10px 4px;}
+  .statrow small{display:block;color:#777;font-size:12px;}.statrow b{font-size:22px;}
+  .cal{max-width:420px;margin-top:8px;}.calhead{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;}
+  .calgrid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;}
+  .calw{text-align:center;font-size:12px;color:#888;}
+  .cald{aspect-ratio:1;display:flex;flex-direction:column;align-items:center;justify-content:center;border-radius:8px;background:#f3f1ec;cursor:pointer;font-size:14px;position:relative;}
+  .cald small{font-size:10px;line-height:1;}
+  .cald.st{background:#bfe3bf;}.cald.ach{background:#f4c542;font-weight:bold;}
+  .cald.today{outline:2px solid var(--accent);}.cald.pick{box-shadow:inset 0 0 0 3px #3f7fd8;}.cald.sel{filter:brightness(.93);}
+  .legend{font-size:12px;color:#666;margin-top:8px;}.lg{display:inline-block;width:12px;height:12px;border-radius:3px;vertical-align:-1px;margin:0 3px 0 6px;background:#f3f1ec;}
+  .lg.st{background:#bfe3bf;}.lg.ach{background:#f4c542;}.lg.pick{background:#fff;box-shadow:inset 0 0 0 2px #3f7fd8;}
+  .caldetail{margin-top:8px;font-size:13px;background:#faf7f2;border-radius:6px;padding:6px 8px;}
+  .celebrate{position:fixed;left:50%;top:38%;transform:translate(-50%,-50%);z-index:10000;background:#fff;border:3px solid #f0b429;border-radius:16px;padding:18px 26px;font-size:22px;font-weight:bold;box-shadow:0 8px 30px rgba(0,0,0,.25);text-align:center;animation:pop .5s ease-out;pointer-events:none;max-width:90vw;}
+  .celebrate.lv3,.celebrate.lv4{font-size:28px;border-color:#e94b4b;}
+  @keyframes pop{0%{transform:translate(-50%,-50%) scale(.3);opacity:0}70%{transform:translate(-50%,-50%) scale(1.12)}100%{transform:translate(-50%,-50%) scale(1);opacity:1}}
 </style>
 </head>
 <body>
@@ -607,6 +630,7 @@ function rkey(sid,idx){ return sid+':'+idx; }
 function ensureReview(){
   if(store.review) delete store.review;   // 旧版の自動収集データは使わない
   if(!store.reviewSet) store.reviewSet = {};
+  ensureGoalData();
 }
 function toggleReview(sid, idx){
   const k = rkey(sid,idx);
@@ -645,6 +669,246 @@ let currentSessionId = null;
 ensureReview();
 
 /* ================= 렌더링 ================= */
+/* ================= 目標設定・到達度 =================
+   store.goal   = {from,to,deadline,start,id}   目標（セッション範囲・期限）
+   store.firstOk= {'sid:idx': 'YYYY-MM-DD'|'base'}  各問題が初めて正解になった日（base=機能追加前に正解済み）
+   store.days   = {'YYYY-MM-DD': {chk,q,ach}}     勉強した日(chk)／その日のノルマ(q)とその達成(ach)
+   store.cel    = 演出を出した記録   store.settings = {sound}                                  */
+function ensureGoalData(){
+  if(!store.firstOk){
+    store.firstOk = {};
+    SESSIONS.forEach(s=>{
+      const st = getSessState(s.id);
+      Object.keys(st.correctness).forEach(i=>{ if(st.correctness[i]===true) store.firstOk[rkey(s.id,i)] = 'base'; });
+    });
+  }
+  if(!store.days) store.days = {};
+  if(!store.cel) store.cel = {};
+  if(!store.settings) store.settings = {sound:false};
+}
+function pad2(n){ return String(n).padStart(2,'0'); }
+function ymd(d){ return d.getFullYear()+'-'+pad2(d.getMonth()+1)+'-'+pad2(d.getDate()); }
+function parseD(s){ const a=s.split('-').map(Number); return new Date(a[0],a[1]-1,a[2]); }
+function addDays(s,n){ const d=parseD(s); d.setDate(d.getDate()+n); return ymd(d); }
+function diffDays(a,b){ return Math.round((parseD(a)-parseD(b))/86400000); }
+function today(){ return window.__TODAY || ymd(new Date()); }
+function ceil10(x){ return Math.ceil(x/10-1e-9)*10; }
+function before(v,D){ return v==='base' || v<D; }
+
+function goalKeys(){
+  const out = [], g = store.goal;
+  if(!g) return out;
+  SESSIONS.forEach((s,i)=>{ if(i+1>=g.from && i+1<=g.to) s.items.forEach((_,j)=>out.push(rkey(s.id,j))); });
+  return out;
+}
+function goalTotal(){ return goalKeys().length*10; }
+function ptsWhere(fn){
+  let n = 0;
+  goalKeys().forEach(k=>{ const v = store.firstOk[k]; if(v && fn(v)) n++; });
+  return n*10;
+}
+function allPtsOn(D){
+  let n = 0;
+  Object.keys(store.firstOk).forEach(k=>{ if(store.firstOk[k]===D) n++; });
+  return n*10;
+}
+// その日の朝時点の残り点数 ÷ 残り日数（当日含む）を10点単位に切り上げ
+function dayQuota(D){
+  const g = store.goal; if(!g) return 0;
+  const rem = goalTotal() - ptsWhere(v=>before(v,D));
+  if(rem<=0) return 0;
+  const left = Math.max(1, diffDays(g.deadline,D)+1);
+  return Math.min(rem, ceil10(rem/left));
+}
+function periodInfo(D,unit){
+  const g = store.goal; if(!g) return null;
+  const dt = parseD(D);
+  let s,e;
+  if(unit==='w'){ s = addDays(D, -((dt.getDay()+6)%7)); e = addDays(s,6); }
+  else { s = ymd(new Date(dt.getFullYear(),dt.getMonth(),1)); e = ymd(new Date(dt.getFullYear(),dt.getMonth()+1,0)); }
+  const ps = s<g.start ? g.start : s, pe = e>g.deadline ? g.deadline : e;
+  if(pe<ps) return null;
+  const rem = goalTotal() - ptsWhere(v=>before(v,ps));
+  const left = Math.max(1, diffDays(g.deadline,ps)+1), n = diffDays(pe,ps)+1;
+  const q = rem<=0 ? 0 : Math.min(rem, ceil10(rem*n/left));
+  return {s:ps, e:pe, q:q, got:ptsWhere(v=>v!=='base' && v>=ps && v<=pe), days:n};
+}
+function touchDay(D){
+  const d = store.days[D] || (store.days[D] = {});
+  if(store.goal && d.q===undefined) d.q = dayQuota(D);
+  return d;
+}
+function syncDay(D){
+  const d = touchDay(D);
+  if(store.goal) d.ach = d.q>0 && ptsWhere(v=>v===D) >= d.q;
+}
+function recordResult(sid, idx, ok, answered){
+  const D = today(), d = touchDay(D);
+  if(answered) d.chk = (d.chk||0)+1;
+  const k = rkey(sid,idx);
+  if(ok && !store.firstOk[k]) store.firstOk[k] = D;
+  syncDay(D);
+}
+function studyStats(){
+  const set = new Set(Object.keys(store.days).filter(k=>store.days[k].chk));
+  let cur = today(); if(!set.has(cur)) cur = addDays(cur,-1);
+  let streak = 0;
+  while(set.has(cur)){ streak++; cur = addDays(cur,-1); }
+  return {total:set.size, streak:streak};
+}
+
+/* ---- 演出 ---- */
+function chime(level){
+  if(!store.settings.sound) return;
+  try{
+    const AC = window.AudioContext || window.webkitAudioContext; if(!AC) return;
+    const ac = new AC(), notes = [523,659,784,1047,1319].slice(0,2+level);
+    notes.forEach((f,i)=>{
+      const o = ac.createOscillator(), g = ac.createGain();
+      o.frequency.value = f; o.connect(g); g.connect(ac.destination);
+      const t = ac.currentTime + i*0.13;
+      g.gain.setValueAtTime(0.0001,t); g.gain.exponentialRampToValueAtTime(0.15,t+0.02); g.gain.exponentialRampToValueAtTime(0.0001,t+0.3);
+      o.start(t); o.stop(t+0.32);
+    });
+  }catch(e){}
+}
+function confetti(level){
+  const n = [0,70,130,200,320][level];
+  const cv = document.createElement('canvas');
+  cv.style.cssText = 'position:fixed;left:0;top:0;width:100%;height:100%;pointer-events:none;z-index:9999';
+  cv.width = window.innerWidth; cv.height = window.innerHeight;
+  document.body.appendChild(cv);
+  let ctx = null; try{ ctx = cv.getContext('2d'); }catch(e){}
+  if(!ctx){ cv.remove(); return; }
+  const cols = ['#e94b4b','#f4c542','#4bb36b','#3f7fd8','#b36bd8','#ff8c42'];
+  const P = Array.from({length:n},()=>({x:Math.random()*cv.width, y:-20-Math.random()*cv.height*0.6, vx:(Math.random()-.5)*4, vy:2+Math.random()*4, r:4+Math.random()*5, c:cols[Math.random()*cols.length|0], a:Math.random()*6}));
+  let t = 0;
+  (function f(){
+    t++; ctx.clearRect(0,0,cv.width,cv.height);
+    P.forEach(p=>{ p.x+=p.vx; p.y+=p.vy; p.a+=.15; ctx.save(); ctx.translate(p.x,p.y); ctx.rotate(p.a); ctx.fillStyle=p.c; ctx.fillRect(-p.r/2,-p.r/2,p.r,p.r*1.6); ctx.restore(); });
+    if(t<170) requestAnimationFrame(f); else cv.remove();
+  })();
+}
+function celebrate(level,msg){
+  const el = document.createElement('div');
+  el.className = 'celebrate lv'+level; el.textContent = msg;
+  document.body.appendChild(el);
+  setTimeout(()=>el.remove(), level>=3 ? 5000 : 3500);
+  confetti(level); chime(level);
+}
+function celebrateCheck(){
+  const g = store.goal; if(!g) return;
+  const D = today(), c = store.cel, hits = [], total = goalTotal();
+  if(total>0 && ptsWhere(()=>true)>=total && !c['g'+g.id]){ c['g'+g.id]=1; hits.push([4,'🏆 目標達成！おめでとうございます！！']); }
+  const m = periodInfo(D,'m');
+  if(m && m.q>0 && m.got>=m.q && !c['m'+g.id+m.s]){ c['m'+g.id+m.s]=1; hits.push([3,'🎊 今月のノルマ達成！']); }
+  const w = periodInfo(D,'w');
+  if(w && w.q>0 && w.got>=w.q && !c['w'+g.id+w.s]){ c['w'+g.id+w.s]=1; hits.push([2,'🎉 今週のノルマ達成！']); }
+  const d = store.days[D];
+  if(d && d.q>0 && d.ach && !c['d'+g.id+D]){ c['d'+g.id+D]=1; hits.push([1,'✨ 今日のノルマ達成！']); }
+  if(!hits.length) return;
+  hits.sort((a,b)=>b[0]-a[0]);
+  saveStore();
+  celebrate(hits[0][0], hits[0][1]);
+}
+
+/* ---- 目標画面 ---- */
+let goalDraft = null, calM = null, calSel = null;
+function applyGoal(){
+  const dr = goalDraft, D = today();
+  if(!dr.deadline){ alert('期限をカレンダーから選んでください'); return; }
+  if(dr.deadline<D){ alert('期限は今日以降の日を選んでください'); return; }
+  store.goal = {from:Math.min(dr.from,dr.to), to:Math.max(dr.from,dr.to), deadline:dr.deadline, start:D, id:Date.now()};
+  if(store.days[D]){ delete store.days[D].q; delete store.days[D].ach; }
+  syncDay(D);
+  saveStore(); renderSidebar(); renderMain();
+}
+function clearGoal(){
+  if(!confirm('目標を削除しますか？（勉強した日の記録は残ります）')) return;
+  store.goal = null; goalDraft = null;
+  saveStore(); renderSidebar(); renderMain();
+}
+function calNav(n){
+  let y = calM.y, m = calM.m+n;
+  if(m<0){ m=11; y--; } else if(m>11){ m=0; y++; }
+  calM = {y:y,m:m}; renderMain();
+}
+function pickDate(k){
+  if(k>=today()) goalDraft.deadline = k;
+  calSel = k; renderMain();
+}
+function bar(got,q,cls){
+  const pct = q>0 ? Math.min(100,Math.round(got/q*100)) : 100;
+  return `<div class="bar ${cls||''}"><i style="width:${pct}%"></i></div>`;
+}
+function calHtml(){
+  const g = store.goal, D = today(), y = calM.y, m = calM.m;
+  const lead = (new Date(y,m,1).getDay()+6)%7, n = new Date(y,m+1,0).getDate();
+  let h = `<div class="cal"><div class="calhead"><button class="btn small secondary" onclick="calNav(-1)">◀</button><b>${y}年${m+1}月</b><button class="btn small secondary" onclick="calNav(1)">▶</button></div><div class="calgrid">`;
+  '月火水木金土日'.split('').forEach(w=>{ h += `<div class="calw">${w}</div>`; });
+  for(let i=0;i<lead;i++) h += '<div></div>';
+  for(let d=1; d<=n; d++){
+    const k = ymd(new Date(y,m,d)), r = store.days[k]||{};
+    let c = 'cald';
+    if(r.chk) c += ' st';
+    if(r.ach) c += ' ach';
+    if(k===D) c += ' today';
+    if(g && k===g.deadline) c += ' dl';
+    if(goalDraft && goalDraft.deadline===k) c += ' pick';
+    if(calSel===k) c += ' sel';
+    h += `<div class="${c}" onclick="pickDate('${k}')">${d}${g && k===g.deadline ? '<small>🚩</small>' : ''}</div>`;
+  }
+  h += `</div><div class="legend"><span class="lg st"></span>勉強した日 <span class="lg ach"></span>ノルマ達成 <span class="lg pick"></span>期限（選択中） 🚩設定済みの期限</div>`;
+  if(calSel){
+    const r = store.days[calSel]||{}, pts = store.goal ? ptsWhere(v=>v===calSel) : allPtsOn(calSel);
+    if(calSel>D) h += `<div class="caldetail">${calSel.replace(/-/g,'/')}：期限に選択中（今日から${diffDays(calSel,D)+1}日間）</div>`;
+    else h += `<div class="caldetail">${calSel.replace(/-/g,'/')}：${r.chk?'勉強した':'勉強なし'}／獲得 ${pts}点${r.q ? '／ノルマ '+r.q+'点 '+(r.ach?'✅達成':'未達') : ''}</div>`;
+  }
+  return h+'</div>';
+}
+function renderGoal(){
+  const main = document.getElementById('main'), g = store.goal, D = today();
+  if(!goalDraft) goalDraft = g ? {from:g.from,to:g.to,deadline:g.deadline} : {from:1,to:SESSIONS.length,deadline:null};
+  if(!calM){ const n = parseD(today()); calM = {y:n.getFullYear(), m:n.getMonth()}; }
+  const dr = goalDraft, lo = Math.min(dr.from,dr.to), hi = Math.max(dr.from,dr.to);
+  const opts = sel=>SESSIONS.map((s,i)=>`<option value="${i+1}" ${sel===i+1?'selected':''}>${i+1}</option>`).join('');
+  let tot = 0, done = 0;
+  SESSIONS.forEach((s,i)=>{ if(i+1>=lo && i+1<=hi) s.items.forEach((_,j)=>{ tot+=10; if(store.firstOk[rkey(s.id,j)]) done+=10; }); });
+  const rem = tot-done;
+  let prev = `範囲の合計 ${tot}点／済み ${done}点／残り ${rem}点`;
+  if(dr.deadline){
+    const days = diffDays(dr.deadline,D)+1;
+    prev += `<br>期限 ${dr.deadline.replace(/-/g,'/')}（今日を含めて${days}日）→ 1日の目安 <b>${rem>0?ceil10(rem/Math.max(1,days)):0}点</b>`;
+  } else prev += '<br>↓ カレンダーで期限の日をタップしてください';
+  let h = `<div class="session-header"><h2>🎯 目標・到達度</h2><div class="instr">範囲と期限を決めると、1日・週間・月間のノルマを自動で計算します。</div></div>`;
+  h += `<div class="item"><b>目標の設定</b>
+    <div class="goalrow">セッション <select onchange="goalDraft.from=+this.value;renderMain()">${opts(dr.from)}</select> 〜 <select onchange="goalDraft.to=+this.value;renderMain()">${opts(dr.to)}</select></div>
+    <div class="goalprev">${prev}</div>
+    <div class="item-controls"><button class="btn small" onclick="applyGoal()">${g?'この内容で目標を更新':'この内容で目標を設定'}</button>${g?'<button class="btn small secondary" onclick="clearGoal()">目標を削除</button>':''}</div></div>`;
+  if(g){
+    const total = goalTotal(), got = ptsWhere(()=>true), d = touchDay(D), dgot = ptsWhere(v=>v===D);
+    const w = periodInfo(D,'w'), m = periodInfo(D,'m');
+    h += `<div class="item"><b>全体の到達度</b>　${got} / ${total}点（${total?Math.round(got/total*100):0}%）${bar(got,total)}`;
+    if(got>=total) h += `<div class="goalmsg ok">🏆 目標達成！新しい目標を設定できます。</div>`;
+    else if(D>g.deadline) h += `<div class="goalmsg ng">期限（${g.deadline.replace(/-/g,'/')}）を過ぎています。残り ${total-got}点。新しい期限を設定してください。</div>`;
+    else {
+      const base = ptsWhere(v=>before(v,g.start)), span = diffDays(g.deadline,g.start)+1, el = Math.min(span,Math.max(0,diffDays(D,g.start)+1));
+      const ideal = Math.round((base+(total-base)*el/span)/10)*10, diff = got-ideal;
+      h += `<div class="goalsub">今日の終わりまでの目安 ${ideal}点 → ${diff>=0?'<b class="okc">+'+diff+'点 先行</b>':'<b class="ngc">'+diff+'点 遅れ</b>'}　／　期限まであと ${diffDays(g.deadline,D)}日</div>`;
+    }
+    h += `</div><div class="item"><b>ノルマ</b>
+      <div class="qrow"><span>今日</span><span>${dgot} / ${d.q}点 ${d.ach?'✅':''}</span></div>${bar(dgot,d.q,d.ach?'full':'')}`;
+    if(w) h += `<div class="qrow"><span>今週（${w.s.slice(5).replace('-','/')}〜${w.e.slice(5).replace('-','/')}）</span><span>${w.got} / ${w.q}点 ${w.q>0&&w.got>=w.q?'✅':''}</span></div>${bar(w.got,w.q,w.q>0&&w.got>=w.q?'full':'')}`;
+    if(m) h += `<div class="qrow"><span>今月（${m.s.slice(5).replace('-','/')}〜${m.e.slice(5).replace('-','/')}）</span><span>${m.got} / ${m.q}点 ${m.q>0&&m.got>=m.q?'✅':''}</span></div>${bar(m.got,m.q,m.q>0&&m.got>=m.q?'full':'')}`;
+    h += `<div class="goalsub">ノルマは、取った点・取れなかった点に合わせて毎日自動で計算し直します。</div></div>`;
+  }
+  const ss = studyStats();
+  h += `<div class="item statrow"><div><small>合計勉強日数</small><b>${ss.total}日</b></div><div><small>連続勉強日数</small><b>${ss.streak}日</b></div></div>`;
+  h += `<div class="item"><b>カレンダー</b>${calHtml()}</div>`;
+  h += `<div class="item"><label><input type="checkbox" ${store.settings.sound?'checked':''} onchange="store.settings.sound=this.checked;saveStore();if(this.checked)chime(1)"> 達成時に効果音を鳴らす</label></div>`;
+  main.innerHTML = h;
+}
+
 function renderSidebar(){
   const ul = document.getElementById('sessionList');
   ul.innerHTML = '';
@@ -656,6 +920,14 @@ function renderSidebar(){
   rbtn.onclick = ()=>openSession('review');
   rli.appendChild(rbtn);
   ul.appendChild(rli);
+  const gli = document.createElement('li'), gbtn = document.createElement('button');
+  gbtn.className = (currentSessionId==='goal'?'active ':'') + 'review';
+  let gb = '未設定';
+  if(store.goal){ const dd = touchDay(today()); gb = '今日 '+ptsWhere(v=>v===today())+'/'+dd.q+'点'; }
+  gbtn.innerHTML = `<span>🎯 目標・到達度</span><span class="badge">${gb}</span>`;
+  gbtn.onclick = ()=>openSession('goal');
+  gli.appendChild(gbtn);
+  ul.appendChild(gli);
   SESSIONS.forEach(s=>{
     const st = getSessState(s.id);
     const max = s.items.length*10;
@@ -759,6 +1031,7 @@ function renderReview(){
 function renderMain(){
   const main = document.getElementById('main');
   if(currentSessionId==='review'){ renderReview(); return; }
+  if(currentSessionId==='goal'){ renderGoal(); return; }
   const s = SESSIONS.find(x=>x.id===currentSessionId);
   if(!s){ main.innerHTML = '<div id="welcome">左のリストからセッションを選んでください。</div>'; return; }
   const tr = TR[s.id] || {};
@@ -814,9 +1087,11 @@ function checkOne(sid, idx){
     ok = isOK(s,it,userVal);
   }
   st.correctness[idx] = ok;
+  recordResult(sid, idx, ok, s.type==='choice' ? st.choiceSel[idx]!==undefined : !!(st.answers[idx]||'').trim());
   saveStore();
   renderSidebar();
   renderMain();
+  celebrateCheck();
 }
 
 function gradeAll(sid){
@@ -831,10 +1106,12 @@ function gradeAll(sid){
       ok = isOK(s,it,userVal);
     }
     st.correctness[idx] = ok;
+    recordResult(sid, idx, ok, s.type==='choice' ? st.choiceSel[idx]!==undefined : !!(st.answers[idx]||'').trim());
   });
   saveStore();
   renderSidebar();
   renderMain();
+  celebrateCheck();
 }
 
 function updateScoreBox(sid){
@@ -968,7 +1245,7 @@ function importData(inp){
       if(!d||d.app!=='ko-study'||!d.store||!d.store.sessions) throw new Error('形式が違います');
       if(!confirm('現在の進捗を、読み込むファイルの内容で上書きします。よろしいですか？')) return;
       store=d.store; ensureReview(); saveStore();
-      if(store.lastSessionId==='review' || (store.lastSessionId && SESSIONS.some(s=>s.id===store.lastSessionId))) currentSessionId=store.lastSessionId;
+      if((store.lastSessionId==='review'||store.lastSessionId==='goal') || (store.lastSessionId && SESSIONS.some(s=>s.id===store.lastSessionId))) currentSessionId=store.lastSessionId;
       renderSidebar(); renderMain();
       alert('進捗を読み込みました。');
     }catch(e){ alert('読み込めませんでした: '+e.message); }
@@ -982,7 +1259,7 @@ if(window.innerWidth<=768){
   document.getElementById('app').classList.add('collapsed');
 }
 renderSidebar();
-if(store.lastSessionId==='review' || (store.lastSessionId && SESSIONS.some(s=>s.id===store.lastSessionId))){
+if((store.lastSessionId==='review'||store.lastSessionId==='goal') || (store.lastSessionId && SESSIONS.some(s=>s.id===store.lastSessionId))){
   openSession(store.lastSessionId);
 } 
 </script>
