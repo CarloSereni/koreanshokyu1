@@ -934,7 +934,7 @@ if('speechSynthesis' in window) speechSynthesis.getVoices();
 function exportData(){
   const d={app:'ko-study',version:1,exported:new Date().toISOString(),store:store};
   const blob=new Blob([JSON.stringify(d,null,1)],{type:'application/json'});
-  const name='kankokugo-progress_'+new Date().toISOString().slice(0,10)+'.json';
+  const name='韓国語初級完成編１_'+new Date().toISOString().slice(0,10)+'.json';
   // 通常のダウンロード（<a>をページに追加してからクリックする）
   const download=()=>{
     const url=URL.createObjectURL(blob);
