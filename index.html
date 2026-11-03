@@ -872,13 +872,13 @@ function renderGoal(){
   if(!calM){ const n = parseD(today()); calM = {y:n.getFullYear(), m:n.getMonth()}; }
   const dr = goalDraft, lo = Math.min(dr.from,dr.to), hi = Math.max(dr.from,dr.to);
   const opts = sel=>SESSIONS.map((s,i)=>`<option value="${i+1}" ${sel===i+1?'selected':''}>${i+1}</option>`).join('');
-  let tot = 0, done = 0;
-  SESSIONS.forEach((s,i)=>{ if(i+1>=lo && i+1<=hi) s.items.forEach((_,j)=>{ tot+=10; if(store.firstOk[rkey(s.id,j)]) done+=10; }); });
-  const rem = tot-done;
+  let tot = 0, done = 0, doneBefore = 0;
+  SESSIONS.forEach((s,i)=>{ if(i+1>=lo && i+1<=hi) s.items.forEach((_,j)=>{ tot+=10; const v = store.firstOk[rkey(s.id,j)]; if(v){ done+=10; if(before(v,D)) doneBefore+=10; } }); });
+  const rem = tot-done, remMorning = tot-doneBefore;  // remMorning＝今日の朝時点の残り（ノルマ計算と同じ基準）
   let prev = `範囲の合計 ${tot}点／済み ${done}点／残り ${rem}点`;
   if(dr.deadline){
     const days = diffDays(dr.deadline,D)+1;
-    prev += `<br>期限 ${dr.deadline.replace(/-/g,'/')}（今日を含めて${days}日）→ 1日の目安 <b>${rem>0?ceil10(rem/Math.max(1,days)):0}点</b>`;
+    prev += `<br>期限 ${dr.deadline.replace(/-/g,'/')}（今日を含めて${days}日）→ 1日の目安 <b>${remMorning>0?Math.min(remMorning,ceil10(remMorning/Math.max(1,days))):0}点</b>（今日の朝時点の残り${remMorning}点÷${days}日を10点単位で切り上げ）`;
   } else prev += '<br>↓ カレンダーで期限の日をタップしてください';
   let h = `<div class="session-header"><h2>🎯 目標・到達度</h2><div class="instr">範囲と期限を決めると、1日・週間・月間のノルマを自動で計算します。</div></div>`;
   h += `<div class="item"><b>目標の設定</b>
@@ -893,14 +893,14 @@ function renderGoal(){
     else if(D>g.deadline) h += `<div class="goalmsg ng">期限（${g.deadline.replace(/-/g,'/')}）を過ぎています。残り ${total-got}点。新しい期限を設定してください。</div>`;
     else {
       const base = ptsWhere(v=>before(v,g.start)), span = diffDays(g.deadline,g.start)+1, el = Math.min(span,Math.max(0,diffDays(D,g.start)+1));
-      const ideal = Math.round((base+(total-base)*el/span)/10)*10, diff = got-ideal;
+      const ideal = Math.min(total, ceil10(base+(total-base)*el/span)), diff = got-ideal;
       h += `<div class="goalsub">今日の終わりまでの目安 ${ideal}点 → ${diff>=0?'<b class="okc">+'+diff+'点 先行</b>':'<b class="ngc">'+diff+'点 遅れ</b>'}　／　期限まであと ${diffDays(g.deadline,D)}日</div>`;
     }
     h += `</div><div class="item"><b>ノルマ</b>
       <div class="qrow"><span>今日</span><span>${dgot} / ${d.q}点 ${d.ach?'✅':''}</span></div>${bar(dgot,d.q,d.ach?'full':'')}`;
     if(w) h += `<div class="qrow"><span>今週（${w.s.slice(5).replace('-','/')}〜${w.e.slice(5).replace('-','/')}）</span><span>${w.got} / ${w.q}点 ${w.q>0&&w.got>=w.q?'✅':''}</span></div>${bar(w.got,w.q,w.q>0&&w.got>=w.q?'full':'')}`;
     if(m) h += `<div class="qrow"><span>今月（${m.s.slice(5).replace('-','/')}〜${m.e.slice(5).replace('-','/')}）</span><span>${m.got} / ${m.q}点 ${m.q>0&&m.got>=m.q?'✅':''}</span></div>${bar(m.got,m.q,m.q>0&&m.got>=m.q?'full':'')}`;
-    h += `<div class="goalsub">ノルマは、取った点・取れなかった点に合わせて毎日自動で計算し直します。</div></div>`;
+    h += `<div class="goalsub">ノルマは、取った点・取れなかった点に合わせて毎日自動で計算し直します。（今日のノルマ＝今日の朝時点の残り点数÷期限までの日数［今日を含む］を10点単位で切り上げ）</div></div>`;
   }
   const ss = studyStats();
   h += `<div class="item statrow"><div><small>合計勉強日数</small><b>${ss.total}日</b></div><div><small>連続勉強日数</small><b>${ss.streak}日</b></div></div>`;

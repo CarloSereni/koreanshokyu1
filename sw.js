@@ -2,8 +2,8 @@
 // - Chromeの「インストール」条件を満たすため、fetchハンドラを必ず持たせる
 // - 画面本体(HTML)はネットワーク優先(失敗時はキャッシュ)、表紙画像はキャッシュ優先
 // - GASへの通信(script.google.com / googleusercontent)やPOSTは一切横取りしない
-const CACHE_NAME = 'ko-study-v2';
-const IMG_CACHE = 'ko-study-img-v2';
+const CACHE_NAME = 'ko-study-v3';
+const IMG_CACHE = 'ko-study-img-v3';
 
 self.addEventListener('install', function (event) {
   self.skipWaiting();
